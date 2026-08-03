@@ -1,4 +1,4 @@
-import { ResultError } from "../result-error";
+import { ResultError } from "./result-error";
 
 export type Result<T, E> = Ok<T, E> | Err<T, E>;
 
@@ -11,9 +11,32 @@ abstract class ResultBase<T, E> {
 
     public abstract unwrapErr(): E;
 
+    public unwrapOr(defaultValue: T): T {
+        return this.isOk()
+            ? this.unwrap()
+            : defaultValue;
+    }
+
     public abstract map<U>(
         mapper: (value: T) => U,
     ): Result<U, E>;
+
+    public abstract flatMap<U>(
+        mapper: (value: T) => Result<U, E>,
+    ): Result<U, E>;
+
+    public abstract mapErr<F>(
+        mapper: (error: E) => F,
+    ): Result<T, F>;
+
+    public match<R>(handlers: {
+        success: (value: T) => R;
+        failure: (error: E) => R;
+    }): R {
+        return this.isOk()
+            ? handlers.success(this.unwrap())
+            : handlers.failure(this.unwrapErr());
+    }
 }
 
 class Ok<T, E = never> extends ResultBase<T, E> {
@@ -44,7 +67,19 @@ class Ok<T, E = never> extends ResultBase<T, E> {
     public map<U>(
         mapper: (value: T) => U,
     ): Result<U, E> {
-        return ok(mapper(this.value));
+        return new Ok<U, E>(mapper(this.value));
+    }
+
+    public flatMap<U>(
+        mapper: (value: T) => Result<U, E>,
+    ): Result<U, E> {
+        return mapper(this.value);
+    }
+
+    public mapErr<F>(
+        _: (error: E) => F,
+    ): Result<T, F> {
+        return new Ok<T, F>(this.value);
     }
 }
 
@@ -76,14 +111,30 @@ class Err<T = never, E = unknown> extends ResultBase<T, E> {
     public map<U>(
         _: (value: T) => U,
     ): Result<U, E> {
-        return err(this.error);
+        return new Err<U, E>(this.error);
+    }
+
+    public flatMap<U>(
+        _: (value: T) => Result<U, E>,
+    ): Result<U, E> {
+        return new Err<U, E>(this.error);
+    }
+
+    public mapErr<F>(
+        mapper: (error: E) => F,
+    ): Result<T, F> {
+        return new Err<T, F>(mapper(this.error));
     }
 }
 
-export function ok<T>(value: T): Result<T, never> {
+export function ok<T>(
+    value: T,
+): Result<T, never> {
     return new Ok(value);
 }
 
-export function err<E>(error: E): Result<never, E> {
+export function err<E>(
+    error: E,
+): Result<never, E> {
     return new Err(error);
 }
