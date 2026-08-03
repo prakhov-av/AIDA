@@ -1,3 +1,5 @@
+// @ts-ignore
+
 import { describe, expect, it } from "vitest";
 import { err, ok } from "../src/foundation";
 
@@ -28,5 +30,19 @@ describe("Result", () => {
         const result = ok(42);
 
         expect(() => result.unwrapErr()).toThrow();
+    });
+
+    it("maps Ok value", () => {
+        const result = ok("AIDA").map((value) => value.length);
+
+        expect(result.isOk()).toBe(true);
+        expect(result.unwrap()).toBe(4);
+    });
+
+    it("does not map Err value", () => {
+        const result = err("Boom").map((value) => value);
+
+        expect(result.isErr()).toBe(true);
+        expect(result.unwrapErr()).toBe("Boom");
     });
 });
