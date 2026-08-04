@@ -1,3 +1,5 @@
+import { deepEqual } from "./deep-equal";
+
 export abstract class ValueObject<T extends object> {
     protected readonly props: Readonly<T>;
 
@@ -14,8 +16,6 @@ export abstract class ValueObject<T extends object> {
             return false;
         }
 
-        return this.equalsCore(other);
+        return deepEqual(this.props, other.props);
     }
-
-    protected abstract equalsCore(other: ValueObject<T>): boolean;
 }
