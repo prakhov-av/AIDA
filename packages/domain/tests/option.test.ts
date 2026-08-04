@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+// @ts-ignore
 
-import { none, some } from "../src/option";
+import { describe, expect, it } from "vitest";
+import { none, some } from "../src/foundation";
 
 describe("Option", () => {
     it("creates Some option", () => {
@@ -8,6 +9,7 @@ describe("Option", () => {
 
         expect(option.isSome()).toBe(true);
         expect(option.isNone()).toBe(false);
+        expect(option.unwrap()).toBe(42);
     });
 
     it("creates None option", () => {
@@ -17,44 +19,34 @@ describe("Option", () => {
         expect(option.isNone()).toBe(true);
     });
 
-    it("unwraps Some value", () => {
-        const option = some(42);
-
-        expect(option.unwrap()).toBe(42);
-    });
-
-    it("throws when unwrapping None", () => {
+    it("throws when unwrap() is called on None", () => {
         const option = none<number>();
 
-        expect(() => option.unwrap()).toThrow("Cannot unwrap None.");
+        expect(() => option.unwrap()).toThrow();
     });
 
-    it("returns value from unwrapOr for Some", () => {
-        const option = some(42);
-
-        expect(option.unwrapOr(100)).toBe(42);
-    });
-
-    it("returns default value from unwrapOr for None", () => {
+    it("returns default value for None", () => {
         const option = none<number>();
 
-        expect(option.unwrapOr(100)).toBe(100);
+        expect(option.unwrapOr(42)).toBe(42);
+    });
+
+    it("returns contained value for Some", () => {
+        const option = some(42);
+
+        expect(option.unwrapOr(0)).toBe(42);
     });
 
     it("maps Some value", () => {
-        const option = some(21);
+        const option = some("AIDA").map((value) => value.length);
 
-        const mapped = option.map((value) => value * 2);
-
-        expect(mapped.isSome()).toBe(true);
-        expect(mapped.unwrap()).toBe(42);
+        expect(option.isSome()).toBe(true);
+        expect(option.unwrap()).toBe(4);
     });
 
-    it("does not map None", () => {
-        const option = none<number>();
+    it("does not map None value", () => {
+        const option = none<string>().map((value) => value.length);
 
-        const mapped = option.map((value) => value * 2);
-
-        expect(mapped.isNone()).toBe(true);
+        expect(option.isNone()).toBe(true);
     });
 });

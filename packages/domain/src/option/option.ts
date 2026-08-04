@@ -1,19 +1,13 @@
 abstract class OptionBase<T> {
-    public abstract isSome(): boolean;
+    abstract isSome(): boolean;
 
-    public abstract isNone(): boolean;
+    abstract isNone(): boolean;
 
-    public abstract unwrap(): T;
+    abstract unwrap(): T;
 
-    public abstract unwrapOr(defaultValue: T): T;
+    abstract unwrapOr(defaultValue: T): T;
 
-    public map<U>(fn: (value: T) => U): Option<U> {
-        if (this.isNone()) {
-            return none();
-        }
-
-        return some(fn(this.unwrap()));
-    }
+    abstract map<U>(fn: (value: T) => U): Option<U>;
 }
 
 class Some<T> extends OptionBase<T> {
@@ -21,42 +15,48 @@ class Some<T> extends OptionBase<T> {
         super();
     }
 
-    public override isSome(): boolean {
+    public isSome(): boolean {
         return true;
     }
 
-    public override isNone(): boolean {
+    public isNone(): boolean {
         return false;
     }
 
-    public override unwrap(): T {
+    public unwrap(): T {
         return this.value;
     }
 
-    public override unwrapOr(_: T): T {
+    public unwrapOr(_defaultValue: T): T {
         return this.value;
+    }
+
+    public map<U>(fn: (value: T) => U): Option<U> {
+        return some(fn(this.value));
     }
 }
 
-class None extends OptionBase<never> {
-    public override isSome(): boolean {
+class None<T> extends OptionBase<T> {
+    public isSome(): boolean {
         return false;
     }
 
-    public override isNone(): boolean {
+    public isNone(): boolean {
         return true;
     }
 
-    public override unwrap(): never {
+    public unwrap(): T {
         throw new Error("Cannot unwrap None.");
     }
 
-    public override unwrapOr(defaultValue: never): never {
+    public unwrapOr(defaultValue: T): T {
         return defaultValue;
     }
-}
 
-const NONE = new None();
+    public map<U>(_fn: (value: T) => U): Option<U> {
+        return none<U>();
+    }
+}
 
 export type Option<T> = OptionBase<T>;
 
@@ -64,6 +64,6 @@ export function some<T>(value: T): Option<T> {
     return new Some(value);
 }
 
-export function none<T>(): Option<T> {
-    return NONE as Option<T>;
+export function none<T = never>(): Option<T> {
+    return new None<T>();
 }
