@@ -27,12 +27,4 @@ describe("DomainEvent", () => {
 
         expect(event.occurredAt).toBe(occurredAt);
     });
-
-    it("exposes occurrence time", () => {
-        const occurredAt = new Date();
-
-        const event = new TestDomainEvent(occurredAt);
-
-        expect(event.occurredAt).toBe(occurredAt);
-    });
 });
