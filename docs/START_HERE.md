@@ -2,206 +2,336 @@
 
 Welcome to AIDA.
 
-Before writing a single line of code, please read this document.
+Before writing a single line of code, read this document.
 
-AIDA is not a traditional backend application.
+AIDA is an architecture-driven software platform. Every architectural decision, public API, and implementation follows explicit engineering principles designed to support long-term evolution.
 
-It is an architecture-driven platform whose implementation follows its engineering model.
-
----
-
-# Development Philosophy
-
-Architecture comes first.
-
-Documentation is the source of truth.
-
-Code is an implementation of architecture.
-
-Every engineering decision should be reflected in the documentation before it appears in the code.
+Documentation is not supplementary material—it is the source of truth.
 
 ---
 
-# Read in this order
+# Mission
 
-To understand AIDA, read the documentation in the following order.
+AIDA (AI Development Agency) is a platform for building long-lived software systems through explicit architecture, domain-driven design, and disciplined engineering.
+
+The objective is not simply to deliver working software, but to create an engineering platform that remains understandable, maintainable, extensible, and stable as it evolves.
+
+Every implementation is expected to follow documented architectural decisions rather than individual interpretation.
+
+---
+
+# Engineering Philosophy
+
+The project follows several fundamental principles.
+
+1. Architecture before Implementation.
+2. Documentation is the Source of Truth.
+3. Decisions before Code.
+4. Domain First.
+5. Explicit over Implicit.
+6. Composition over Inheritance.
+7. Small Stable Abstractions.
+8. Result over Exception.
+9. Events are Facts.
+10. Immutable by Default.
+11. Stable Public APIs.
+12. Human in the Loop.
+
+These principles apply to every package, module, and contribution.
+
+---
+
+# Development Process
+
+All significant engineering work follows the same lifecycle.
+
+```text
+Architecture Check
+        ↓
+Repository Check
+        ↓
+Implementation
+        ↓
+Type Check
+        ↓
+Unit Tests
+        ↓
+Documentation Check
+        ↓
+Review
+        ↓
+Freeze
+        ↓
+Architecture Decision Record (ADR)
+        ↓
+Release Review
+        ↓
+Release
+```
+
+Implementation must never begin before the architectural review has been completed.
+
+Repository contents are always considered the source of truth.
+
+---
+
+# Documentation Structure
+
+Documentation is organized into several categories.
+
+## Vision
+
+Defines the long-term direction of the platform.
+
+## Architecture
+
+Describes the overall architecture, engineering principles, and system boundaries.
+
+## Architecture Research (AR)
+
+Explores architectural alternatives without making implementation decisions.
+
+Research documents never establish architecture.
+
+## Architecture Decision Records (ADR)
+
+Record architectural decisions together with their rationale, trade-offs, and consequences.
+
+Only ADRs define accepted architectural decisions.
+
+## Detailed Design (DD)
+
+Defines public APIs, implementation contracts, and module behavior.
+
+Implementation follows these specifications.
+
+---
+
+# Reading Order
+
+New contributors should read the documentation in the following order.
 
 1. README.md
 2. Vision
-3. Ubiquitous Language
-4. Core Domain
-5. Project Intelligence
-6. Intelligence Model
-7. Domain Events
-8. Execution Kernel
-9. RFC documents
-10. ADR documents
+3. Architecture
+4. Architecture Research (AR)
+5. Architecture Decision Records (ADR)
+6. Detailed Design (DD)
+
+Each document builds upon the previous ones.
 
 Do not skip this order.
-
-Every document builds on the previous one.
-
----
-
-# Fundamental Principles
-
-AIDA follows ten immutable engineering principles.
-
-1. Architecture before Framework.
-2. Domain First.
-3. Human in the Loop.
-4. Project Intelligence is the Source of Truth.
-5. Context over Prompt.
-6. Events are Facts.
-7. Immutable by Default.
-8. Result over Exception.
-9. Documentation is Executable.
-10. Simplicity over Cleverness.
-
-These principles form the project's engineering constitution.
 
 ---
 
 # Repository Organization
 
-The repository is divided into three major areas.
+The repository is organized into logical areas.
 
-## Knowledge
-
-```
+```text
 docs/
-```
-
-Contains the Architecture Book, RFCs, ADRs and engineering documentation.
-
----
-
-## Platform
-
-```
 packages/
-```
-
-Contains reusable platform components.
-
-Examples:
-
-* domain
-* kernel
-* planning
-* context
-* intelligence
-* events
-
-Packages must remain framework independent.
-
----
-
-## Applications
-
-```
 apps/
 ```
 
-Contains executable applications such as:
+## docs
 
-* API
-* CLI
-* Worker
-* Web
+Contains architecture, engineering decisions, design documents, and supporting documentation.
 
-Applications depend on packages.
+Documentation drives implementation.
 
-Packages never depend on applications.
+## packages
+
+Contains reusable framework-independent platform modules.
+
+Each package exposes a minimal, stable public API.
+
+Packages may depend only on lower architectural layers.
+
+## apps
+
+Contains executable applications built on top of reusable packages.
+
+Applications may depend on packages.
+
+Packages must never depend on applications.
 
 ---
 
 # Dependency Rules
 
-Allowed direction of dependencies:
+Architectural dependencies follow a single direction.
 
 ```text
-Applications
+Interfaces
+        ↓
+Application
+        ↓
+Domain
 
-↓
-
-Platform Packages
-
-↓
-
+Infrastructure
+        ↓
+Application
+        ↓
 Domain
 ```
 
-The Domain package must never depend on any application, framework or infrastructure component.
+The Domain layer must remain completely independent of:
+
+- frameworks;
+- databases;
+- messaging systems;
+- dependency injection containers;
+- transport protocols;
+- user interfaces.
+
+Business rules always flow from the Domain outward.
+
+Infrastructure adapts to the Domain—not the other way around.
 
 ---
 
-# Engineering Workflow
+# Shared Domain SDK
 
-Every change follows the same lifecycle.
+The current SDK provides the architectural building blocks shared across the platform.
 
-Architecture
+Its public API includes:
 
-↓
+- Result
+- Option
+- ValueObject
+- Identity
+- Entity
+- AggregateRoot
+- DomainEvent
+- DomainEvents
+- Repository
+- Command
+- CommandHandler
+- Query
+- QueryHandler
+- UnitOfWork
 
-Specification
+These modules form the foundation of the platform and are considered stable.
 
-↓
+---
 
-Implementation
+# Public API Stability
 
-↓
+The public API is intentionally minimal.
 
-Tests
+Before introducing any new public type or modifying an existing one, verify that:
 
-↓
+- the architectural motivation is documented;
+- the change is reviewed;
+- backward compatibility has been evaluated;
+- the documentation has been updated.
 
-Review
+Frozen modules should remain stable across releases.
 
-↓
+Breaking changes require a new architectural review and are introduced only through planned versioning.
 
-Merge
+---
 
-Do not implement features without an approved architectural decision.
+# Engineering Rules
+
+Before implementing any feature, verify that:
+
+- the required architecture exists;
+- the repository has been inspected;
+- the affected public API has been reviewed;
+- the implementation follows existing project conventions;
+- architectural boundaries remain intact.
+
+If documentation and implementation disagree, resolve the inconsistency through the documented engineering process rather than making assumptions.
+
+Repository contents are always considered the source of truth.
 
 ---
 
 # Pull Request Checklist
 
-Before opening a Pull Request verify:
+Before opening a Pull Request, ensure that:
 
-* Architecture is respected.
-* Public API is stable.
-* Tests pass.
-* Documentation is updated.
-* No architectural invariants are violated.
+- architecture has been reviewed;
+- public APIs remain stable;
+- documentation has been updated;
+- TSDoc is complete for public APIs;
+- all type checks pass;
+- all unit tests pass;
+- architectural boundaries are preserved.
+
+Every Pull Request should represent a single logical change.
 
 ---
 
-# Current Development Phase
+# Current Status
 
-Current focus:
+Current milestone:
 
-**Sprint 1 — Domain Foundation**
+**Sprint 2.5 — SDK Polish & Release Preparation**
 
-Objectives:
+Completed:
 
-* Build the Domain SDK.
-* Create foundational Value Objects.
-* Implement Domain Events.
-* Define Commands.
-* Prepare the Execution Kernel.
+- Foundation
+- Application
+- Public API Review
+- Public API TSDoc
 
-No infrastructure code should be introduced before the Domain SDK is complete.
+Current objective:
+
+Prepare the Shared Domain SDK for the **v0.1.0** release without changing the public API.
+
+Remaining release activities include:
+
+- documentation review;
+- CHANGELOG preparation;
+- ADR cleanup;
+- release review;
+- v0.1.0 release.
+
+---
+
+# Release Process
+
+Every release follows the same engineering process.
+
+```text
+Architecture
+        ↓
+Implementation
+        ↓
+Type Check
+        ↓
+Tests
+        ↓
+Documentation
+        ↓
+Review
+        ↓
+Freeze
+        ↓
+Release
+```
+
+Documentation is considered part of the release.
+
+A release is not complete until the documentation accurately reflects the implementation.
 
 ---
 
 # Welcome
 
-AIDA is built with a long-term perspective.
+AIDA is built for long-term evolution rather than short-term delivery.
 
-Our goal is not simply to generate code.
+Architecture guides implementation.
 
-Our goal is to build a platform capable of coordinating a digital engineering organization.
+Documentation guides architecture.
 
-If you are contributing to AIDA, welcome aboard.
+Engineering decisions are explicit.
+
+Public APIs remain stable.
+
+Every contribution should leave the platform more understandable than it was before.
+
+Welcome aboard.
