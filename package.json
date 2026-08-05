@@ -1,0 +1,14 @@
+{
+  "name": "aida",
+  "private": true,
+  "packageManager": "npm@10",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "typecheck": "npm run typecheck --workspaces"
+  }
+}
