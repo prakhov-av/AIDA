@@ -1,0 +1,1283 @@
+
+// === START FILE: src/aggregate-root/aggregate-root.ts ===
+import { Entity } from "../entity";
+import { DomainEvent, DomainEvents } from "../events";
+import type { Identity } from "../foundation/identity";
+
+/**
+ * Represents the root entity of an aggregate.
+ *
+ * An aggregate root is responsible for collecting and exposing
+ * domain events produced within the aggregate.
+ *
+ * @typeParam TId - Aggregate identity type.
+ */
+export abstract class AggregateRoot<
+    TId extends Identity<unknown>,
+> extends Entity<TId> {
+    private readonly domainEvents = new DomainEvents();
+
+    protected addDomainEvent(event: DomainEvent): void {
+        this.domainEvents.add(event);
+    }
+
+    /**
+     * Retrieves and clears all pending domain events.
+     *
+     * @returns Collected domain events in the order they were added.
+     */
+    public pullDomainEvents(): readonly DomainEvent[] {
+        return this.domainEvents.pull();
+    }
+}
+// === END FILE: src/aggregate-root/aggregate-root.ts ===
+
+// === START FILE: src/aggregate-root/index.ts ===
+export * from './aggregate-root';
+// === END FILE: src/aggregate-root/index.ts ===
+
+// === START FILE: src/commands/command-handler.ts ===
+import type { Command } from "./command";
+
+/**
+ * Defines a handler responsible for executing a command.
+ *
+ * @typeParam TCommand The command type handled by this handler.
+ */
+export interface CommandHandler<TCommand extends Command> {
+    /**
+     * Executes the specified command.
+     *
+     * @param command The command to execute.
+     * @returns A promise that resolves when command execution completes.
+     */
+    handle(command: TCommand): Promise<void>;
+}
+// === END FILE: src/commands/command-handler.ts ===
+
+// === START FILE: src/commands/command.ts ===
+/**
+ * Represents a command that requests a state-changing operation.
+ */
+export interface Command {}
+// === END FILE: src/commands/command.ts ===
+
+// === START FILE: src/commands/index.ts ===
+export * from "./command";
+export * from "./command-handler";
+export * from "./query";
+export * from "./query-handler";
+// === END FILE: src/commands/index.ts ===
+
+// === START FILE: src/commands/query-handler.ts ===
+import type { Query } from "./query";
+
+/**
+ * Defines a handler responsible for executing a query.
+ *
+ * @typeParam TQuery The query type handled by this handler.
+ * @typeParam TResult The result type returned by the query.
+ */
+export interface QueryHandler<
+    TQuery extends Query<TResult>,
+    TResult,
+> {
+    /**
+     * Executes the specified query.
+     *
+     * @param query The query to execute.
+     * @returns A promise that resolves to the query result.
+     */
+    handle(query: TQuery): Promise<TResult>;
+}
+// === END FILE: src/commands/query-handler.ts ===
+
+// === START FILE: src/commands/query.ts ===
+/**
+ * Represents a query that requests data without modifying application state.
+ *
+ * @typeParam TResult The type of the query result.
+ */
+export interface Query<TResult> {}
+// === END FILE: src/commands/query.ts ===
+
+// === START FILE: src/domain-error/domain-error.ts ===
+export abstract class DomainError extends Error {
+    protected constructor(message: string, options?: ErrorOptions) {
+        super(message, options);
+
+        this.name = new.target.name;
+
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}
+// === END FILE: src/domain-error/domain-error.ts ===
+
+// === START FILE: src/domain-error/index.ts ===
+export { DomainError } from "./domain-error";
+// === END FILE: src/domain-error/index.ts ===
+
+// === START FILE: src/entity.ts ===
+import { Identity } from "./foundation/identity";
+
+/**
+ * Represents a domain entity identified by a stable identity.
+ *
+ * Entities are compared by their identity rather than by the values
+ * of their properties.
+ *
+ * @typeParam TId - Entity identity type.
+ */
+export abstract class Entity<TId extends Identity<unknown>> {
+    private readonly _id: TId;
+
+    protected constructor(id: TId) {
+        this._id = id;
+    }
+
+    /**
+     * Gets the identity of the entity.
+     */
+    public get id(): TId {
+        return this._id;
+    }
+
+    /**
+     * Determines whether this entity is equal to another entity.
+     *
+     * Equality is based on the runtime type and entity identity.
+     *
+     * @param other - Entity to compare with.
+     * @returns `true` if both entities are equal; otherwise `false`.
+     */
+    public equals(other: Entity<TId> | null | undefined): boolean {
+        if (other == null) {
+            return false;
+        }
+
+        if (this === other) {
+            return true;
+        }
+
+        if (this.constructor !== other.constructor) {
+            return false;
+        }
+
+        return this._id.equals(other._id);
+    }
+}
+// === END FILE: src/entity.ts ===
+
+// === START FILE: src/events/domain-event.ts ===
+/**
+ * Represents a domain event raised by the domain model.
+ *
+ * Domain events capture facts that have already occurred and can be
+ * collected by an aggregate root for later dispatch.
+ */
+export abstract class DomainEvent {
+    private readonly _occurredAt: Date;
+
+    protected constructor(occurredAt: Date = new Date()) {
+        this._occurredAt = occurredAt;
+    }
+
+    /**
+     * Gets the timestamp when the event occurred.
+     */
+    public get occurredAt(): Date {
+        return this._occurredAt;
+    }
+}
+// === END FILE: src/events/domain-event.ts ===
+
+// === START FILE: src/events/domain-events.ts ===
+import { DomainEvent } from "./domain-event";
+
+/**
+ * Stores domain events raised during the current unit of work.
+ */
+export class DomainEvents {
+    private readonly events: DomainEvent[] = [];
+
+    /**
+     * Adds a domain event to the collection.
+     *
+     * @param event The domain event to store.
+     */
+    public add(event: DomainEvent): void {
+        this.events.push(event);
+    }
+
+    /**
+     * Returns all stored domain events and clears the collection.
+     *
+     * @returns The collected domain events.
+     */
+    public pull(): readonly DomainEvent[] {
+        const events = [...this.events];
+
+        this.events.length = 0;
+
+        return events;
+    }
+
+    /**
+     * Removes all stored domain events.
+     */
+    public clear(): void {
+        this.events.length = 0;
+    }
+
+    /**
+     * Gets the number of stored domain events.
+     */
+    public get size(): number {
+        return this.events.length;
+    }
+}
+// === END FILE: src/events/domain-events.ts ===
+
+// === START FILE: src/events/index.ts ===
+export * from "./domain-event";
+export * from "./domain-events";
+// === END FILE: src/events/index.ts ===
+
+// === START FILE: src/foundation/identity/identity.ts ===
+import { ValueObject } from "../../value-object";
+
+/**
+ * Represents a strongly typed identity value.
+ *
+ * Identities provide equality semantics through {@link ValueObject}
+ * and serve as a base class for domain-specific identifiers.
+ *
+ * @typeParam T - Underlying identity value type.
+ */
+export abstract class Identity<T> extends ValueObject<{ value: T }> {
+    protected constructor(value: T) {
+        super({ value });
+    }
+
+    protected get value(): T {
+        return this.props.value;
+    }
+}
+// === END FILE: src/foundation/identity/identity.ts ===
+
+// === START FILE: src/foundation/identity/index.ts ===
+export { Identity } from "./identity";
+// === END FILE: src/foundation/identity/index.ts ===
+
+// === START FILE: src/foundation/index.ts ===
+export * from "../option";
+export * from "./identity";
+export * from "./result";
+export * from "../value-object";
+// === END FILE: src/foundation/index.ts ===
+
+// === START FILE: src/foundation/result/index.ts ===
+export * from "./result";
+export * from "./result-error";
+// === END FILE: src/foundation/result/index.ts ===
+
+// === START FILE: src/foundation/result/result-error.ts ===
+/**
+ * Thrown when a Result is accessed incorrectly.
+ */
+export class ResultError extends Error {
+    public constructor(message: string) {
+        super(message);
+
+        this.name = "ResultError";
+
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}
+// === END FILE: src/foundation/result/result-error.ts ===
+
+// === START FILE: src/foundation/result/result.ts ===
+import { ResultError } from "./result-error";
+
+/**
+ * Represents the outcome of an operation that can either succeed or fail.
+ *
+ * @typeParam T - Success value type.
+ * @typeParam E - Error value type.
+ */
+export type Result<T, E> = Ok<T, E> | Err<T, E>;
+
+abstract class ResultBase<T, E> {
+    public abstract isOk(): this is Ok<T, E>;
+
+    public abstract isErr(): this is Err<T, E>;
+
+    public abstract unwrap(): T;
+
+    public abstract unwrapErr(): E;
+
+    public unwrapOr(defaultValue: T): T {
+        return this.isOk()
+            ? this.unwrap()
+            : defaultValue;
+    }
+
+    public abstract map<U>(
+        mapper: (value: T) => U,
+    ): Result<U, E>;
+
+    public abstract flatMap<U>(
+        mapper: (value: T) => Result<U, E>,
+    ): Result<U, E>;
+
+    public abstract mapErr<F>(
+        mapper: (error: E) => F,
+    ): Result<T, F>;
+
+    public match<R>(handlers: {
+        success: (value: T) => R;
+        failure: (error: E) => R;
+    }): R {
+        return this.isOk()
+            ? handlers.success(this.unwrap())
+            : handlers.failure(this.unwrapErr());
+    }
+}
+
+class Ok<T, E = never> extends ResultBase<T, E> {
+    public constructor(
+        private readonly value: T,
+    ) {
+        super();
+    }
+
+    public isOk(): this is Ok<T, E> {
+        return true;
+    }
+
+    public isErr(): this is Err<T, E> {
+        return false;
+    }
+
+    public unwrap(): T {
+        return this.value;
+    }
+
+    public unwrapErr(): never {
+        throw new ResultError(
+            "Cannot call unwrapErr() on an Ok result. Use unwrap() instead.",
+        );
+    }
+
+    public map<U>(
+        mapper: (value: T) => U,
+    ): Result<U, E> {
+        return new Ok<U, E>(mapper(this.value));
+    }
+
+    public flatMap<U>(
+        mapper: (value: T) => Result<U, E>,
+    ): Result<U, E> {
+        return mapper(this.value);
+    }
+
+    public mapErr<F>(
+        _: (error: E) => F,
+    ): Result<T, F> {
+        return new Ok<T, F>(this.value);
+    }
+}
+
+class Err<T = never, E = unknown> extends ResultBase<T, E> {
+    public constructor(
+        private readonly error: E,
+    ) {
+        super();
+    }
+
+    public isOk(): this is Ok<T, E> {
+        return false;
+    }
+
+    public isErr(): this is Err<T, E> {
+        return true;
+    }
+
+    public unwrap(): never {
+        throw new ResultError(
+            "Cannot call unwrap() on an Err result. Use unwrapErr() instead.",
+        );
+    }
+
+    public unwrapErr(): E {
+        return this.error;
+    }
+
+    public map<U>(
+        _: (value: T) => U,
+    ): Result<U, E> {
+        return new Err<U, E>(this.error);
+    }
+
+    public flatMap<U>(
+        _: (value: T) => Result<U, E>,
+    ): Result<U, E> {
+        return new Err<U, E>(this.error);
+    }
+
+    public mapErr<F>(
+        mapper: (error: E) => F,
+    ): Result<T, F> {
+        return new Err<T, F>(mapper(this.error));
+    }
+}
+
+/**
+ * Creates a successful result.
+ *
+ * @param value - Success value.
+ * @returns Successful result.
+ */
+export function ok<T>(
+    value: T,
+): Result<T, never> {
+    return new Ok(value);
+}
+
+/**
+ * Creates a failed result.
+ *
+ * @param error - Failure value.
+ * @returns Failed result.
+ */
+export function err<E>(
+    error: E,
+): Result<never, E> {
+    return new Err(error);
+}
+// === END FILE: src/foundation/result/result.ts ===
+
+// === START FILE: src/index.ts ===
+export * from "./aggregate-root";
+export * from "./commands";
+export * from "./domain-error";
+export * from "./entity";
+export * from "./events";
+export * from "./foundation";
+export * from "./repository";
+// === END FILE: src/index.ts ===
+
+// === START FILE: src/option/index.ts ===
+export { none, some } from "./option";
+export type { Option } from "./option";
+// === END FILE: src/option/index.ts ===
+
+// === START FILE: src/option/option.ts ===
+abstract class OptionBase<T> {
+    abstract isSome(): boolean;
+
+    abstract isNone(): boolean;
+
+    abstract unwrap(): T;
+
+    abstract unwrapOr(defaultValue: T): T;
+
+    abstract map<U>(fn: (value: T) => U): Option<U>;
+}
+
+class Some<T> extends OptionBase<T> {
+    public constructor(private readonly value: T) {
+        super();
+    }
+
+    public isSome(): boolean {
+        return true;
+    }
+
+    public isNone(): boolean {
+        return false;
+    }
+
+    public unwrap(): T {
+        return this.value;
+    }
+
+    public unwrapOr(_defaultValue: T): T {
+        return this.value;
+    }
+
+    public map<U>(fn: (value: T) => U): Option<U> {
+        return some(fn(this.value));
+    }
+}
+
+class None<T> extends OptionBase<T> {
+    public isSome(): boolean {
+        return false;
+    }
+
+    public isNone(): boolean {
+        return true;
+    }
+
+    public unwrap(): T {
+        throw new Error("Cannot unwrap None.");
+    }
+
+    public unwrapOr(defaultValue: T): T {
+        return defaultValue;
+    }
+
+    public map<U>(_fn: (value: T) => U): Option<U> {
+        return none<U>();
+    }
+}
+
+export type Option<T> = OptionBase<T>;
+
+export function some<T>(value: T): Option<T> {
+    return new Some(value);
+}
+
+export function none<T = never>(): Option<T> {
+    return new None<T>();
+}
+// === END FILE: src/option/option.ts ===
+
+// === START FILE: src/repository/index.ts ===
+export * from "./repository";
+// === END FILE: src/repository/index.ts ===
+
+// === START FILE: src/repository/repository.ts ===
+import type { AggregateRoot } from "../aggregate-root";
+import type { Identity } from "../foundation";
+import type { Option } from "../option";
+
+/**
+ * Defines the persistence contract for aggregate roots.
+ *
+ * @typeParam TAggregate The aggregate root type.
+ * @typeParam TId The aggregate identifier type.
+ */
+export abstract class Repository<
+    TAggregate extends AggregateRoot<TId>,
+    TId extends Identity<unknown>,
+> {
+    /**
+     * Finds an aggregate by its identifier.
+     *
+     * @param id The aggregate identifier.
+     * @returns An option containing the aggregate when found.
+     */
+    public abstract findById(id: TId): Promise<Option<TAggregate>>;
+
+    /**
+     * Persists the aggregate.
+     *
+     * @param aggregate The aggregate to save.
+     */
+    public abstract save(aggregate: TAggregate): Promise<void>;
+
+    /**
+     * Deletes the aggregate with the specified identifier.
+     *
+     * @param id The aggregate identifier.
+     */
+    public abstract delete(id: TId): Promise<void>;
+}
+// === END FILE: src/repository/repository.ts ===
+
+// === START FILE: src/unit-of-work/unit-of-work.ts ===
+/**
+ * Defines a transactional boundary for coordinating application changes.
+ */
+export interface UnitOfWork {
+    /**
+     * Commits all pending changes.
+     *
+     * @returns A promise that resolves when the transaction has been committed.
+     */
+    commit(): Promise<void>;
+
+    /**
+     * Rolls back all pending changes.
+     *
+     * @returns A promise that resolves when the transaction has been rolled back.
+     */
+    rollback(): Promise<void>;
+}
+// === END FILE: src/unit-of-work/unit-of-work.ts ===
+
+// === START FILE: src/value-object/deep-equal.ts ===
+function isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+}
+
+export function deepEqual(left: unknown, right: unknown): boolean {
+    if (Object.is(left, right)) {
+        return true;
+    }
+
+    if (!isObject(left) || !isObject(right)) {
+        return false;
+    }
+
+    if (Array.isArray(left) !== Array.isArray(right)) {
+        return false;
+    }
+
+    const leftKeys = Object.keys(left);
+    const rightKeys = Object.keys(right);
+
+    if (leftKeys.length !== rightKeys.length) {
+        return false;
+    }
+
+    for (const key of leftKeys) {
+        if (!(key in right)) {
+            return false;
+        }
+
+        if (!deepEqual(left[key], right[key])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+// === END FILE: src/value-object/deep-equal.ts ===
+
+// === START FILE: src/value-object/index.ts ===
+export { ValueObject } from "./value-object";
+// === END FILE: src/value-object/index.ts ===
+
+// === START FILE: src/value-object/value-object.ts ===
+import { deepEqual } from "./deep-equal";
+
+export abstract class ValueObject<T extends object> {
+    protected readonly props: Readonly<T>;
+
+    protected constructor(props: T) {
+        this.props = Object.freeze({ ...props });
+    }
+
+    public equals(other: ValueObject<T>): boolean {
+        if (Object.is(this, other)) {
+            return true;
+        }
+
+        if (this.constructor !== other.constructor) {
+            return false;
+        }
+
+        return deepEqual(this.props, other.props);
+    }
+}
+// === END FILE: src/value-object/value-object.ts ===
+
+// === START FILE: tests/aggregate-root.test.ts ===
+import { describe, expect, it } from 'vitest';
+
+import { AggregateRoot, Identity } from '../src';
+
+class TestId extends Identity<string> {
+    public constructor(value: string) {
+        super(value);
+    }
+}
+
+class TestAggregateRoot extends AggregateRoot<TestId> {
+    public constructor(id: TestId) {
+        super(id);
+    }
+}
+
+describe('AggregateRoot', () => {
+    it('extends Entity', () => {
+        const id = new TestId('1');
+        const aggregate = new TestAggregateRoot(id);
+
+        expect(aggregate).toBeInstanceOf(AggregateRoot);
+    });
+
+    it('exposes identity', () => {
+        const id = new TestId('1');
+        const aggregate = new TestAggregateRoot(id);
+
+        expect(aggregate.id).toBe(id);
+    });
+
+    it('uses identity equality inherited from Entity', () => {
+        const id = new TestId('1');
+
+        const left = new TestAggregateRoot(id);
+        const right = new TestAggregateRoot(id);
+
+        expect(left.equals(right)).toBe(true);
+    });
+
+    it('is not equal when identities differ', () => {
+        const left = new TestAggregateRoot(new TestId('1'));
+        const right = new TestAggregateRoot(new TestId('2'));
+
+        expect(left.equals(right)).toBe(false);
+    });
+
+    it('is not equal when runtime types differ', () => {
+        class AnotherAggregateRoot extends AggregateRoot<TestId> {
+            public constructor(id: TestId) {
+                super(id);
+            }
+        }
+
+        const id = new TestId('1');
+
+        const left = new TestAggregateRoot(id);
+        const right = new AnotherAggregateRoot(id);
+
+        expect(left.equals(right)).toBe(false);
+    });
+});
+// === END FILE: tests/aggregate-root.test.ts ===
+
+// === START FILE: tests/deep-equal.test.ts ===
+import { describe, expect, it } from "vitest";
+
+import { deepEqual } from "../src/value-object/deep-equal";
+
+describe("deepEqual", () => {
+    it("returns true for identical primitive values", () => {
+        expect(deepEqual(42, 42)).toBe(true);
+        expect(deepEqual("a", "a")).toBe(true);
+        expect(deepEqual(true, true)).toBe(true);
+    });
+
+    it("returns false for different primitive values", () => {
+        expect(deepEqual(1, 2)).toBe(false);
+        expect(deepEqual("a", "b")).toBe(false);
+        expect(deepEqual(true, false)).toBe(false);
+    });
+
+    it("returns true for equal objects", () => {
+        expect(
+            deepEqual(
+                { value: 42 },
+                { value: 42 },
+            ),
+        ).toBe(true);
+    });
+
+    it("returns false for different objects", () => {
+        expect(
+            deepEqual(
+                { value: 1 },
+                { value: 2 },
+            ),
+        ).toBe(false);
+    });
+
+    it("returns true for nested objects", () => {
+        expect(
+            deepEqual(
+                {
+                    value: {
+                        nested: 42,
+                    },
+                },
+                {
+                    value: {
+                        nested: 42,
+                    },
+                },
+            ),
+        ).toBe(true);
+    });
+
+    it("returns true for equal arrays", () => {
+        expect(deepEqual([1, 2, 3], [1, 2, 3])).toBe(true);
+    });
+
+    it("returns false for different arrays", () => {
+        expect(deepEqual([1, 2, 3], [1, 2])).toBe(false);
+    });
+
+    it("returns false for object and array", () => {
+        expect(deepEqual({}, [])).toBe(false);
+    });
+
+    it("returns false for null and object", () => {
+        expect(deepEqual(null, {})).toBe(false);
+    });
+});
+// === END FILE: tests/deep-equal.test.ts ===
+
+// === START FILE: tests/domain-error.test.ts ===
+import { describe, expect, it } from "vitest";
+
+import { DomainError } from "../src/domain-error";
+
+class TestError extends DomainError {
+    public constructor(message = "Test error", options?: ErrorOptions) {
+        super(message, options);
+    }
+}
+
+describe("DomainError", () => {
+    it("extends Error", () => {
+        const error = new TestError();
+
+        expect(error).toBeInstanceOf(Error);
+    });
+
+    it("preserves DomainError inheritance", () => {
+        const error = new TestError();
+
+        expect(error).toBeInstanceOf(DomainError);
+    });
+
+    it("preserves derived type", () => {
+        const error = new TestError();
+
+        expect(error).toBeInstanceOf(TestError);
+    });
+
+    it("sets the error name", () => {
+        const error = new TestError();
+
+        expect(error.name).toBe("TestError");
+    });
+
+    it("preserves the message", () => {
+        const error = new TestError("Something went wrong.");
+
+        expect(error.message).toBe("Something went wrong.");
+    });
+
+    it("preserves cause", () => {
+        const cause = new Error("Root cause");
+        const error = new TestError("Failure", { cause });
+
+        expect(error.cause).toBe(cause);
+    });
+});
+// === END FILE: tests/domain-error.test.ts ===
+
+// === START FILE: tests/domain-event.test.ts ===
+import { describe, expect, it } from "vitest";
+
+import { DomainEvent } from "../src/events";
+
+class TestDomainEvent extends DomainEvent {
+    public constructor(occurredAt?: Date) {
+        super(occurredAt);
+    }
+}
+
+describe("DomainEvent", () => {
+    it("creates event with current timestamp", () => {
+        const before = Date.now();
+
+        const event = new TestDomainEvent();
+
+        const after = Date.now();
+
+        expect(event.occurredAt.getTime()).toBeGreaterThanOrEqual(before);
+        expect(event.occurredAt.getTime()).toBeLessThanOrEqual(after);
+    });
+
+    it("uses provided occurrence time", () => {
+        const occurredAt = new Date("2026-01-01T00:00:00.000Z");
+
+        const event = new TestDomainEvent(occurredAt);
+
+        expect(event.occurredAt).toBe(occurredAt);
+    });
+});
+// === END FILE: tests/domain-event.test.ts ===
+
+// === START FILE: tests/domain-events.test.ts ===
+import { describe, expect, it } from "vitest";
+
+import { DomainEvent, DomainEvents } from "../src";
+
+class TestDomainEvent extends DomainEvent {
+    public constructor(occurredAt?: Date) {
+        super(occurredAt);
+    }
+}
+
+describe("DomainEvents", () => {
+    it("starts empty", () => {
+        const events = new DomainEvents();
+
+        expect(events.size).toBe(0);
+    });
+
+    it("adds events", () => {
+        const events = new DomainEvents();
+
+        events.add(new TestDomainEvent());
+
+        expect(events.size).toBe(1);
+    });
+
+    it("preserves insertion order", () => {
+        const events = new DomainEvents();
+
+        const first = new TestDomainEvent();
+        const second = new TestDomainEvent();
+
+        events.add(first);
+        events.add(second);
+
+        expect(events.pull()).toEqual([first, second]);
+    });
+
+    it("pull returns all events and clears collection", () => {
+        const events = new DomainEvents();
+
+        const first = new TestDomainEvent();
+        const second = new TestDomainEvent();
+
+        events.add(first);
+        events.add(second);
+
+        const pulled = events.pull();
+
+        expect(pulled).toEqual([first, second]);
+        expect(events.size).toBe(0);
+    });
+
+    it("pull returns a new array", () => {
+        const events = new DomainEvents();
+
+        events.add(new TestDomainEvent());
+
+        const pulled = events.pull();
+
+        expect(pulled).not.toBe(events.pull());
+    });
+
+    it("clear removes all events", () => {
+        const events = new DomainEvents();
+
+        events.add(new TestDomainEvent());
+        events.add(new TestDomainEvent());
+
+        events.clear();
+
+        expect(events.size).toBe(0);
+    });
+
+    it("clear is idempotent", () => {
+        const events = new DomainEvents();
+
+        events.clear();
+        events.clear();
+
+        expect(events.size).toBe(0);
+    });
+});
+
+// === END FILE: tests/domain-events.test.ts ===
+
+// === START FILE: tests/entity.test.ts ===
+import { describe, expect, it } from "vitest";
+
+import { Entity } from "../src/entity";
+import { Identity } from "../src/foundation";
+
+class TestId extends Identity<string> {
+    public static create(value: string): TestId {
+        return new TestId(value);
+    }
+
+    private constructor(value: string) {
+        super(value);
+    }
+}
+
+class TestEntity extends Entity<TestId> {
+    public constructor(id: TestId) {
+        super(id);
+    }
+}
+
+class AnotherEntity extends Entity<TestId> {
+    public constructor(id: TestId) {
+        super(id);
+    }
+}
+
+describe("Entity", () => {
+    it("exposes identity", () => {
+        const id = TestId.create("1");
+        const entity = new TestEntity(id);
+
+        expect(entity.id).toBe(id);
+    });
+
+    it("is equal to itself", () => {
+        const entity = new TestEntity(TestId.create("1"));
+
+        expect(entity.equals(entity)).toBe(true);
+    });
+
+    it("is equal when type and identity are equal", () => {
+        const left = new TestEntity(TestId.create("1"));
+        const right = new TestEntity(TestId.create("1"));
+
+        expect(left.equals(right)).toBe(true);
+    });
+
+    it("is not equal when identities differ", () => {
+        const left = new TestEntity(TestId.create("1"));
+        const right = new TestEntity(TestId.create("2"));
+
+        expect(left.equals(right)).toBe(false);
+    });
+
+    it("is not equal when runtime types differ", () => {
+        const id = TestId.create("1");
+
+        const left = new TestEntity(id);
+        const right = new AnotherEntity(id);
+
+        expect(left.equals(right)).toBe(false);
+    });
+
+    it("returns false for null", () => {
+        const entity = new TestEntity(TestId.create("1"));
+
+        expect(entity.equals(null)).toBe(false);
+    });
+
+    it("returns false for undefined", () => {
+        const entity = new TestEntity(TestId.create("1"));
+
+        expect(entity.equals(undefined)).toBe(false);
+    });
+});
+// === END FILE: tests/entity.test.ts ===
+
+// === START FILE: tests/identity.test.ts ===
+// @ts-ignore
+
+import { describe, expect, it } from "vitest";
+import { Identity } from "../src/foundation/identity";
+
+class TestIdentity extends Identity<string> {
+    public constructor(value: string) {
+        super(value);
+    }
+
+    public getValue(): string {
+        return this.value;
+    }
+}
+
+describe("Identity", () => {
+    it("stores the provided value", () => {
+        const identity = new TestIdentity("user-1");
+
+        expect(identity.getValue()).toBe("user-1");
+    });
+
+    it("compares identities by value", () => {
+        const left = new TestIdentity("user-1");
+        const right = new TestIdentity("user-1");
+
+        expect(left.equals(right)).toBe(true);
+    });
+
+    it("does not consider different values equal", () => {
+        const left = new TestIdentity("user-1");
+        const right = new TestIdentity("user-2");
+
+        expect(left.equals(right)).toBe(false);
+    });
+});
+
+// === END FILE: tests/identity.test.ts ===
+
+// === START FILE: tests/option.test.ts ===
+// @ts-ignore
+
+import { describe, expect, it } from "vitest";
+import { none, some } from "../src/foundation";
+
+describe("Option", () => {
+    it("creates Some option", () => {
+        const option = some(42);
+
+        expect(option.isSome()).toBe(true);
+        expect(option.isNone()).toBe(false);
+        expect(option.unwrap()).toBe(42);
+    });
+
+    it("creates None option", () => {
+        const option = none<number>();
+
+        expect(option.isSome()).toBe(false);
+        expect(option.isNone()).toBe(true);
+    });
+
+    it("throws when unwrap() is called on None", () => {
+        const option = none<number>();
+
+        expect(() => option.unwrap()).toThrow();
+    });
+
+    it("returns default value for None", () => {
+        const option = none<number>();
+
+        expect(option.unwrapOr(42)).toBe(42);
+    });
+
+    it("returns contained value for Some", () => {
+        const option = some(42);
+
+        expect(option.unwrapOr(0)).toBe(42);
+    });
+
+    it("maps Some value", () => {
+        const option = some("AIDA").map((value) => value.length);
+
+        expect(option.isSome()).toBe(true);
+        expect(option.unwrap()).toBe(4);
+    });
+
+    it("does not map None value", () => {
+        const option = none<string>().map((value) => value.length);
+
+        expect(option.isNone()).toBe(true);
+    });
+});
+// === END FILE: tests/option.test.ts ===
+
+// === START FILE: tests/repository.test.ts ===
+import { describe, expect, it } from "vitest";
+
+import { AggregateRoot } from "../src/aggregate-root";
+import { Identity } from "../src/foundation";
+import { none, Option } from "../src/option";
+import { Repository } from "../src/repository";
+
+class TestId extends Identity<string> {
+    public static create(value: string): TestId {
+        return new TestId(value);
+    }
+
+    private constructor(value: string) {
+        super(value);
+    }
+}
+
+class TestAggregate extends AggregateRoot<TestId> {
+    public constructor(id: TestId) {
+        super(id);
+    }
+}
+
+class TestRepository extends Repository<TestAggregate, TestId> {
+    public async findById(_id: TestId): Promise<Option<TestAggregate>> {
+        return none();
+    }
+
+    public async save(_aggregate: TestAggregate): Promise<void> {
+        // no-op
+    }
+
+    public async delete(_id: TestId): Promise<void> {
+        // no-op
+    }
+}
+
+describe("Repository", () => {
+    it("can be inherited", () => {
+        const repository = new TestRepository();
+
+        expect(repository).toBeInstanceOf(Repository);
+    });
+
+    it("returns Option from findById", async () => {
+        const repository = new TestRepository();
+
+        const result = await repository.findById(TestId.create("1"));
+
+        expect(result.isNone()).toBe(true);
+    });
+
+    it("supports save", async () => {
+        const repository = new TestRepository();
+
+        await expect(
+            repository.save(new TestAggregate(TestId.create("1"))),
+        ).resolves.toBeUndefined();
+    });
+
+    it("supports delete", async () => {
+        const repository = new TestRepository();
+
+        await expect(
+            repository.delete(TestId.create("1")),
+        ).resolves.toBeUndefined();
+    });
+});
+// === END FILE: tests/repository.test.ts ===
+
+// === START FILE: tests/result.test.ts ===
+// @ts-ignore
+
+import { describe, expect, it } from "vitest";
+import { err, ok } from "../src/foundation";
+
+describe("Result", () => {
+    it("creates Ok result", () => {
+        const result = ok(42);
+
+        expect(result.isOk()).toBe(true);
+        expect(result.isErr()).toBe(false);
+        expect(result.unwrap()).toBe(42);
+    });
+
+    it("creates Err result", () => {
+        const result = err("Validation failed");
+
+        expect(result.isOk()).toBe(false);
+        expect(result.isErr()).toBe(true);
+        expect(result.unwrapErr()).toBe("Validation failed");
+    });
+
+    it("throws when unwrap() is called on Err", () => {
+        const result = err("Validation failed");
+
+        expect(() => result.unwrap()).toThrow();
+    });
+
+    it("throws when unwrapErr() is called on Ok", () => {
+        const result = ok(42);
+
+        expect(() => result.unwrapErr()).toThrow();
+    });
+
+    it("maps Ok value", () => {
+        const result = ok("AIDA").map((value) => value.length);
+
+        expect(result.isOk()).toBe(true);
+        expect(result.unwrap()).toBe(4);
+    });
+
+    it("does not map Err value", () => {
+        const result = err("Boom").map((value) => value);
+
+        expect(result.isErr()).toBe(true);
+        expect(result.unwrapErr()).toBe("Boom");
+    });
+});
+
+// === END FILE: tests/result.test.ts ===
+
+// === START FILE: tests/result.ts ===
+
+// === END FILE: tests/result.ts ===

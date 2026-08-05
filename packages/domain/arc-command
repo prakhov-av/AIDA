@@ -1,0 +1,1 @@
+find src tests -name "*.ts" -exec sh -c 'echo -e "\n// === START FILE: {} ==="; cat "{}"; echo -e "\n// === END FILE: {} ==="' \; > full_project_code.txt
