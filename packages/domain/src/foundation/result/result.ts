@@ -1,5 +1,11 @@
 import { ResultError } from "./result-error";
 
+/**
+ * Represents the outcome of an operation that can either succeed or fail.
+ *
+ * @typeParam T - Success value type.
+ * @typeParam E - Error value type.
+ */
 export type Result<T, E> = Ok<T, E> | Err<T, E>;
 
 abstract class ResultBase<T, E> {
@@ -127,12 +133,24 @@ class Err<T = never, E = unknown> extends ResultBase<T, E> {
     }
 }
 
+/**
+ * Creates a successful result.
+ *
+ * @param value - Success value.
+ * @returns Successful result.
+ */
 export function ok<T>(
     value: T,
 ): Result<T, never> {
     return new Ok(value);
 }
 
+/**
+ * Creates a failed result.
+ *
+ * @param error - Failure value.
+ * @returns Failed result.
+ */
 export function err<E>(
     error: E,
 ): Result<never, E> {
