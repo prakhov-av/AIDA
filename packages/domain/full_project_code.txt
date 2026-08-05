@@ -243,6 +243,245 @@ export * from "./domain-event";
 export * from "./domain-events";
 // === END FILE: src/events/index.ts ===
 
+// === START FILE: src/execution/application-executor.ts ===
+/**
+ * Defines the application execution entry point.
+ *
+ * The executor coordinates application request execution
+ * without depending on concrete request types.
+ */
+export interface ApplicationExecutor {
+    /**
+     * Executes an application request.
+     *
+     * @typeParam TRequest - Request type.
+     * @typeParam TResponse - Response type.
+     *
+     * @param request - Application request.
+     * @returns Execution response.
+     */
+    execute<TRequest, TResponse>(
+        request: TRequest,
+    ): Promise<TResponse>;
+}
+// === END FILE: src/execution/application-executor.ts ===
+
+// === START FILE: src/execution/default-application-executor.ts ===
+import type { ApplicationExecutor } from "./application-executor";
+import type { PipelineExecutor } from "./pipeline-executor";
+
+/**
+ * Default application execution entry point.
+ *
+ * Delegates execution details to the configured pipeline executor.
+ */
+export class DefaultApplicationExecutor implements ApplicationExecutor {
+    constructor(
+        private readonly pipelineExecutor: PipelineExecutor,
+    ) {}
+
+    /**
+     * Executes an application request.
+     *
+     * @param request - Application request.
+     * @returns Execution response.
+     */
+    execute<TRequest, TResponse>(
+        request: TRequest,
+    ): Promise<TResponse> {
+        return this.pipelineExecutor.execute<TRequest, TResponse>(
+            request,
+        );
+    }
+}
+// === END FILE: src/execution/default-application-executor.ts ===
+
+// === START FILE: src/execution/default-pipeline-builder.ts ===
+import type { PipelineBehavior } from "./pipeline-behavior";
+import type { PipelineBuilder } from "./pipeline-builder";
+
+/**
+ * Default implementation of pipeline composition.
+ *
+ * The builder creates an execution delegate
+ * by composing configured pipeline behaviors.
+ */
+export class DefaultPipelineBuilder implements PipelineBuilder {
+    private readonly behaviors: readonly PipelineBehavior<unknown, unknown>[];
+
+    constructor(
+        behaviors: readonly PipelineBehavior<unknown, unknown>[],
+    ) {
+        this.behaviors = behaviors;
+    }
+
+    /**
+     * Builds a pipeline execution delegate.
+     *
+     * @param terminal - Final execution stage.
+     * @returns Composed pipeline delegate.
+     */
+    build<TRequest, TResponse>(
+        terminal: (request: TRequest) => Promise<TResponse>,
+    ): (request: TRequest) => Promise<TResponse> {
+        return (request: TRequest): Promise<TResponse> => {
+            let next = terminal;
+
+            for (let index = this.behaviors.length - 1; index >= 0; index -= 1) {
+                const behavior = this.behaviors[index] as PipelineBehavior<
+                    TRequest,
+                    TResponse
+                >;
+
+                const currentNext = next;
+
+                next = (currentRequest: TRequest): Promise<TResponse> =>
+                    behavior.execute(
+                        currentRequest,
+                        () => currentNext(currentRequest),
+                    );
+            }
+
+            return next(request);
+        };
+    }
+}
+// === END FILE: src/execution/default-pipeline-builder.ts ===
+
+// === START FILE: src/execution/default-pipeline-executor.ts ===
+import type { HandlerResolver } from "./handler-resolver";
+import type { PipelineBuilder } from "./pipeline-builder";
+import type { PipelineExecutor } from "./pipeline-executor";
+
+/**
+ * Default implementation of pipeline execution coordination.
+ *
+ * Resolves handlers and builds execution pipelines.
+ */
+export class DefaultPipelineExecutor implements PipelineExecutor {
+    constructor(
+        private readonly handlerResolver: HandlerResolver,
+        private readonly pipelineBuilder: PipelineBuilder,
+    ) {}
+
+    /**
+     * Executes an application request through the pipeline.
+     *
+     * @param request - Application request.
+     * @returns Execution response.
+     */
+    execute<TRequest, TResponse>(
+        request: TRequest,
+    ): Promise<TResponse> {
+        const handler =
+            this.handlerResolver.resolve<TRequest, TResponse>(
+                request,
+            );
+
+        const pipeline =
+            this.pipelineBuilder.build<TRequest, TResponse>(
+                handler,
+            );
+
+        return pipeline(request);
+    }
+}
+// === END FILE: src/execution/default-pipeline-executor.ts ===
+
+// === START FILE: src/execution/handler-resolver.ts ===
+/**
+ * Defines handler resolution for application requests.
+ *
+ * The resolver maps requests to executable handlers.
+ */
+export interface HandlerResolver {
+    /**
+     * Resolves an executable handler for a request.
+     *
+     * @typeParam TRequest - Request type.
+     * @typeParam TResponse - Response type.
+     *
+     * @param request - Application request.
+     * @returns Executable handler.
+     */
+    resolve<TRequest, TResponse>(
+        request: TRequest,
+    ): (request: TRequest) => Promise<TResponse>;
+}
+// === END FILE: src/execution/handler-resolver.ts ===
+
+// === START FILE: src/execution/index.ts ===
+export * from "./application-executor";
+export * from "./default-pipeline-builder";
+export * from "./pipeline-behavior";
+export * from "./pipeline-builder";
+export * from "./pipeline-executor";
+export * from "./handler-resolver";
+export * from "./default-pipeline-executor";
+// === END FILE: src/execution/index.ts ===
+
+// === START FILE: src/execution/pipeline-behavior.ts ===
+/**
+ * Defines a behavior executed as part of a pipeline.
+ *
+ * Pipeline behaviors allow execution logic to be composed
+ * while keeping each responsibility isolated.
+ *
+ * @typeParam TRequest - Type of the execution request.
+ * @typeParam TResponse - Type of the execution response.
+ */
+export interface PipelineBehavior<TRequest, TResponse> {
+    /**
+     * Executes the current pipeline behavior.
+     *
+     * @param request - Current execution request.
+     * @param next - Delegate to continue pipeline execution.
+     * @returns Execution response.
+     */
+    execute(
+        request: TRequest,
+        next: () => Promise<TResponse>,
+    ): Promise<TResponse>;
+}
+// === END FILE: src/execution/pipeline-behavior.ts ===
+
+// === START FILE: src/execution/pipeline-builder.ts ===
+/**
+ * Defines pipeline composition.
+ *
+ * The builder creates an execution delegate
+ * from configured pipeline behaviors.
+ */
+export interface PipelineBuilder {
+    build<TRequest, TResponse>(
+        terminal: (request: TRequest) => Promise<TResponse>,
+    ): (request: TRequest) => Promise<TResponse>;
+}
+// === END FILE: src/execution/pipeline-builder.ts ===
+
+// === START FILE: src/execution/pipeline-executor.ts ===
+/**
+ * Defines execution coordination for pipeline-based processing.
+ *
+ * The executor owns execution lifecycle and coordinates
+ * handler resolution and pipeline execution.
+ */
+export interface PipelineExecutor {
+    /**
+     * Executes an application request.
+     *
+     * @typeParam TRequest - Request type.
+     * @typeParam TResponse - Response type.
+     *
+     * @param request - Execution request.
+     * @returns Execution response.
+     */
+    execute<TRequest, TResponse>(
+        request: TRequest,
+    ): Promise<TResponse>;
+}
+// === END FILE: src/execution/pipeline-executor.ts ===
+
 // === START FILE: src/foundation/identity/identity.ts ===
 import { ValueObject } from "../../value-object";
 
@@ -463,6 +702,7 @@ export * from "./commands";
 export * from "./domain-error";
 export * from "./entity";
 export * from "./events";
+export * from "./execution";
 export * from "./foundation";
 export * from "./repository";
 // === END FILE: src/index.ts ===
@@ -810,6 +1050,47 @@ describe("deepEqual", () => {
     });
 });
 // === END FILE: tests/deep-equal.test.ts ===
+
+// === START FILE: tests/default-application-executor.test.ts ===
+import { describe, expect, it } from "vitest";
+
+import { DefaultApplicationExecutor } from "../src/execution/default-application-executor";
+import type { PipelineExecutor } from "../src/execution/pipeline-executor";
+
+describe("DefaultApplicationExecutor", () => {
+    it("should delegate request execution to pipeline executor", async () => {
+        const request = {
+            value: "test",
+        };
+
+        let executedRequest: unknown;
+
+        const pipelineExecutor: PipelineExecutor = {
+            execute<TRequest, TResponse>(
+                receivedRequest: TRequest,
+            ): Promise<TResponse> {
+                executedRequest = receivedRequest;
+
+                return Promise.resolve({
+                    success: true,
+                } as TResponse);
+            },
+        };
+
+        const executor = new DefaultApplicationExecutor(
+            pipelineExecutor,
+        );
+
+        const result = await executor.execute<
+            typeof request,
+            { success: boolean }
+        >(request);
+
+        expect(executedRequest).toBe(request);
+        expect(result.success).toBe(true);
+    });
+});
+// === END FILE: tests/default-application-executor.test.ts ===
 
 // === START FILE: tests/domain-error.test.ts ===
 import { describe, expect, it } from "vitest";
