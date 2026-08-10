@@ -1,18 +1,28 @@
-import type { HandlerResolver } from "./handler-resolver";
+import type {
+    HandlerActivator,
+} from "../runtime";
 import type {
     HandlerRegistry,
     RequestConstructor,
 } from "../runtime";
-import { HandlerNotFoundError } from "../runtime";
+import {
+    HandlerNotFoundError,
+} from "../runtime";
+
+import type { HandlerResolver } from "./handler-resolver";
 
 /**
  * Default implementation of HandlerResolver.
  *
- * Resolves executable handlers from the configured registry.
+ * Resolves executable handlers from the configured registry
+ * and activates them through the configured HandlerActivator.
  */
-export class DefaultHandlerResolver implements HandlerResolver {
+export class DefaultHandlerResolver
+    implements HandlerResolver
+{
     public constructor(
         private readonly registry: HandlerRegistry,
+        private readonly activator: HandlerActivator,
     ) {}
 
     /**
@@ -26,19 +36,20 @@ export class DefaultHandlerResolver implements HandlerResolver {
         request: TRequest,
     ): (request: TRequest) => Promise<TResponse> {
         const requestType =
-            (request as object).constructor as RequestConstructor<TRequest>;
+            (request as object)
+                .constructor as RequestConstructor<TRequest>;
 
-        const handler =
+        const source =
             this.registry.get<TRequest, TResponse>(
                 requestType,
             );
 
-        if (handler === undefined) {
+        if (source === undefined) {
             throw new HandlerNotFoundError(
                 requestType.name,
             );
         }
 
-        return handler;
+        return this.activator.activate(source);
     }
 }

@@ -1,45 +1,60 @@
 import type {
+    HandlerActivationSource,
+} from "./handler-activator";
+import type {
     HandlerRegistry,
     RequestConstructor,
-    RequestHandler,
 } from "./handler-registry";
 
 /**
  * Default in-memory implementation of HandlerRegistry.
  */
-export class DefaultHandlerRegistry implements HandlerRegistry {
+export class DefaultHandlerRegistry
+    implements HandlerRegistry
+{
     private readonly handlers = new Map<
         Function,
-        RequestHandler<unknown, unknown>
+        HandlerActivationSource<unknown, unknown>
     >();
 
     /**
-     * Registers a handler for the specified request type.
+     * Registers a handler activation source for the specified request type.
      *
      * @param request - Request constructor.
-     * @param handler - Request handler.
+     * @param source - Handler activation source.
      */
     public register<TRequest, TResponse>(
         request: RequestConstructor<TRequest>,
-        handler: RequestHandler<TRequest, TResponse>,
+        source: HandlerActivationSource<
+            TRequest,
+            TResponse
+        >,
     ): void {
         this.handlers.set(
             request,
-            handler as RequestHandler<unknown, unknown>,
+            source as HandlerActivationSource<
+                unknown,
+                unknown
+            >,
         );
     }
 
     /**
-     * Returns a handler registered for the specified request type.
+     * Returns the activation source registered for the specified request type.
      *
      * @param request - Request constructor.
-     * @returns Registered handler or undefined.
+     * @returns Registered activation source or undefined.
      */
     public get<TRequest, TResponse>(
         request: RequestConstructor<TRequest>,
-    ): RequestHandler<TRequest, TResponse> | undefined {
+    ):
+        | HandlerActivationSource<TRequest, TResponse>
+        | undefined {
         return this.handlers.get(request) as
-            | RequestHandler<TRequest, TResponse>
+            | HandlerActivationSource<
+            TRequest,
+            TResponse
+        >
             | undefined;
     }
 }

@@ -1,3 +1,5 @@
+import type { HandlerActivationSource } from "./handler-activator";
+
 /**
  * Represents a request constructor used as a registry key.
  *
@@ -17,33 +19,33 @@ export type RequestHandler<TRequest, TResponse> = (
 ) => Promise<TResponse>;
 
 /**
- * Defines registration and lookup of request handlers.
+ * Defines registration and lookup of request handler activation sources.
  */
 export interface HandlerRegistry {
     /**
-     * Registers a handler for the specified request type.
+     * Registers a handler activation source for the specified request type.
      *
      * @typeParam TRequest - Request type.
      * @typeParam TResponse - Response type.
      *
      * @param request - Request constructor.
-     * @param handler - Request handler.
+     * @param source - Handler activation source.
      */
     register<TRequest, TResponse>(
         request: RequestConstructor<TRequest>,
-        handler: RequestHandler<TRequest, TResponse>,
+        source: HandlerActivationSource<TRequest, TResponse>,
     ): void;
 
     /**
-     * Returns a handler registered for the specified request type.
+     * Returns the activation source registered for the specified request type.
      *
      * @typeParam TRequest - Request type.
      * @typeParam TResponse - Response type.
      *
      * @param request - Request constructor.
-     * @returns Registered handler or undefined.
+     * @returns Registered activation source or undefined.
      */
     get<TRequest, TResponse>(
         request: RequestConstructor<TRequest>,
-    ): RequestHandler<TRequest, TResponse> | undefined;
+    ): HandlerActivationSource<TRequest, TResponse> | undefined;
 }

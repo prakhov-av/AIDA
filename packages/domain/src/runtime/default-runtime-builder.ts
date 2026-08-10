@@ -8,6 +8,7 @@ import {
     DefaultPipelineExecutor,
 } from "../execution";
 
+import { DefaultHandlerActivator } from "./default-handler-activator";
 import { DefaultHandlerRegistry } from "./default-handler-registry";
 import type {
     RequestConstructor,
@@ -45,11 +46,13 @@ export class DefaultRuntimeBuilder
         handler: RequestHandler<TRequest, TResponse>,
     ): RuntimeBuilder {
         this.registrations.push({
-            request: request as RequestConstructor<unknown>,
-            handler: handler as RequestHandler<
-                unknown,
-                unknown
-            >,
+            request:
+                request as RequestConstructor<unknown>,
+            handler:
+                handler as RequestHandler<
+                    unknown,
+                    unknown
+                >,
         });
 
         return this;
@@ -86,17 +89,23 @@ export class DefaultRuntimeBuilder
         const registry =
             new DefaultHandlerRegistry();
 
-        for (const registration of this
-            .registrations) {
+        for (const registration of this.registrations) {
             registry.register(
                 registration.request,
-                registration.handler,
+                {
+                    kind: "handler",
+                    handler: registration.handler,
+                },
             );
         }
+
+        const activator =
+            new DefaultHandlerActivator();
 
         const resolver =
             new DefaultHandlerResolver(
                 registry,
+                activator,
             );
 
         const pipelineBuilder =
