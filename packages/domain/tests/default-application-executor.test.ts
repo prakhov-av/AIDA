@@ -35,4 +35,30 @@ describe("DefaultApplicationExecutor", () => {
         expect(executedRequest).toBe(request);
         expect(result.success).toBe(true);
     });
+
+    it("should propagate execution failure from pipeline executor", async () => {
+        const request = {
+            value: "test",
+        };
+
+        const error = new Error("Execution failed");
+
+        const pipelineExecutor: PipelineExecutor = {
+            execute<TRequest, TResponse>(
+                _request: TRequest,
+            ): Promise<TResponse> {
+                return Promise.reject(error);
+            },
+        };
+
+        const executor = new DefaultApplicationExecutor(
+            pipelineExecutor,
+        );
+
+        await expect(
+            executor.execute<typeof request, { success: boolean }>(
+                request,
+            ),
+        ).rejects.toBe(error);
+    });
 });
