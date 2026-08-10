@@ -1,6 +1,7 @@
 import type { ApplicationExecutor } from "../execution";
 import type { PipelineBehavior } from "../execution";
 
+import type { HandlerFactory } from "./handler-activator";
 import type {
     RequestConstructor,
     RequestHandler,
@@ -20,6 +21,18 @@ export interface RuntimeBuilder {
     register<TRequest, TResponse>(
         request: RequestConstructor<TRequest>,
         handler: RequestHandler<TRequest, TResponse>,
+    ): RuntimeBuilder;
+
+    /**
+     * Registers a request handler factory.
+     *
+     * @param request - Request constructor.
+     * @param factory - Handler factory.
+     * @returns Current builder.
+     */
+    registerFactory<TRequest, TResponse>(
+        request: RequestConstructor<TRequest>,
+        factory: HandlerFactory<TRequest, TResponse>,
     ): RuntimeBuilder;
 
     /**

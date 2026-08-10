@@ -11,6 +11,10 @@ import {
 import { DefaultHandlerActivator } from "./default-handler-activator";
 import { DefaultHandlerRegistry } from "./default-handler-registry";
 import type {
+    HandlerActivationSource,
+    HandlerFactory,
+} from "./handler-activator";
+import type {
     RequestConstructor,
     RequestHandler,
 } from "./handler-registry";
@@ -18,7 +22,10 @@ import type { RuntimeBuilder } from "./runtime-builder";
 
 interface Registration {
     readonly request: RequestConstructor<unknown>;
-    readonly handler: RequestHandler<unknown, unknown>;
+    readonly source: HandlerActivationSource<
+        unknown,
+        unknown
+    >;
 }
 
 /**
@@ -48,11 +55,41 @@ export class DefaultRuntimeBuilder
         this.registrations.push({
             request:
                 request as RequestConstructor<unknown>,
-            handler:
-                handler as RequestHandler<
-                    unknown,
-                    unknown
-                >,
+            source: {
+                kind: "handler",
+                handler:
+                    handler as RequestHandler<
+                        unknown,
+                        unknown
+                    >,
+            },
+        });
+
+        return this;
+    }
+
+    /**
+     * Registers a request handler factory.
+     *
+     * @param request - Request constructor.
+     * @param factory - Handler factory.
+     * @returns Current builder.
+     */
+    public registerFactory<TRequest, TResponse>(
+        request: RequestConstructor<TRequest>,
+        factory: HandlerFactory<TRequest, TResponse>,
+    ): RuntimeBuilder {
+        this.registrations.push({
+            request:
+                request as RequestConstructor<unknown>,
+            source: {
+                kind: "factory",
+                factory:
+                    factory as HandlerFactory<
+                        unknown,
+                        unknown
+                    >,
+            },
         });
 
         return this;
@@ -92,10 +129,7 @@ export class DefaultRuntimeBuilder
         for (const registration of this.registrations) {
             registry.register(
                 registration.request,
-                {
-                    kind: "handler",
-                    handler: registration.handler,
-                },
+                registration.source,
             );
         }
 

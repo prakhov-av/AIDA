@@ -44,6 +44,34 @@ describe("DefaultRuntimeBuilder", () => {
         ).resolves.toBe("AIDA");
     });
 
+    it("registers handler factories before build", async () => {
+        let activations = 0;
+
+        const executor =
+            new DefaultRuntimeBuilder()
+                .registerFactory(
+                    CreateUserCommand,
+                    () => {
+                        activations += 1;
+
+                        return async (request) =>
+                            request.name;
+                    },
+                )
+                .build();
+
+        await expect(
+            executor.execute<
+                CreateUserCommand,
+                string
+            >(
+                new CreateUserCommand("AIDA"),
+            ),
+        ).resolves.toBe("AIDA");
+
+        expect(activations).toBe(1);
+    });
+
     it("executes registered pipeline behaviors", async () => {
         const calls: string[] = [];
 
@@ -137,6 +165,13 @@ describe("DefaultRuntimeBuilder", () => {
             builder.register(
                 CreateUserCommand,
                 async () => "",
+            ),
+        ).toBe(builder);
+
+        expect(
+            builder.registerFactory(
+                CreateUserCommand,
+                () => async () => "",
             ),
         ).toBe(builder);
 
