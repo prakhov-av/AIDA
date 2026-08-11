@@ -1,3 +1,4 @@
+import type { UnitOfWork } from "../unit-of-work";
 import type { ApplicationExecutor } from "../execution";
 import type { PipelineBehavior } from "../execution";
 
@@ -28,6 +29,8 @@ interface Registration {
     >;
 }
 
+type UnitOfWorkFactory = () => UnitOfWork;
+
 /**
  * Default implementation of RuntimeBuilder.
  */
@@ -40,6 +43,10 @@ export class DefaultRuntimeBuilder
         unknown,
         unknown
     >[] = [];
+
+    public constructor(
+        private readonly unitOfWorkFactory: UnitOfWorkFactory,
+    ) {}
 
     /**
      * Registers a request handler.
@@ -155,6 +162,7 @@ export class DefaultRuntimeBuilder
 
         return new DefaultApplicationExecutor(
             pipelineExecutor,
+            this.unitOfWorkFactory(),
         );
     }
 }

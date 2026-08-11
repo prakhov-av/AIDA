@@ -1,14 +1,18 @@
+import type { UnitOfWork } from "../unit-of-work";
 import type { ApplicationExecutor } from "./application-executor";
 import type { PipelineExecutor } from "./pipeline-executor";
 
 /**
  * Default application execution entry point.
  *
- * Delegates execution details to the configured pipeline executor.
+ * Coordinates application execution and persistence transaction outcome.
  */
-export class DefaultApplicationExecutor implements ApplicationExecutor {
+export class DefaultApplicationExecutor
+    implements ApplicationExecutor
+{
     constructor(
         private readonly pipelineExecutor: PipelineExecutor,
+        private readonly unitOfWork: UnitOfWork,
     ) {}
 
     /**
@@ -17,11 +21,23 @@ export class DefaultApplicationExecutor implements ApplicationExecutor {
      * @param request - Application request.
      * @returns Execution response.
      */
-    execute<TRequest, TResponse>(
+    async execute<TRequest, TResponse>(
         request: TRequest,
     ): Promise<TResponse> {
-        return this.pipelineExecutor.execute<TRequest, TResponse>(
-            request,
-        );
+        try {
+            const response =
+                await this.pipelineExecutor.execute<
+                    TRequest,
+                    TResponse
+                >(request);
+
+            await this.unitOfWork.commit();
+
+            return response;
+        } catch (error) {
+            await this.unitOfWork.rollback();
+
+            throw error;
+        }
     }
 }

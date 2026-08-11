@@ -6,16 +6,36 @@ import {
     type RequestHandler,
 } from "../src";
 
+import type { UnitOfWork } from "../src/unit-of-work";
+
 class CreateUserCommand {
     public constructor(
         public readonly name: string,
     ) {}
 }
 
+class TestUnitOfWork implements UnitOfWork {
+    public commits = 0;
+    public rollbacks = 0;
+
+    public async commit(): Promise<void> {
+        this.commits += 1;
+    }
+
+    public async rollback(): Promise<void> {
+        this.rollbacks += 1;
+    }
+}
+
 describe("DefaultRuntimeBuilder", () => {
+    const createUnitOfWork = (): UnitOfWork =>
+        new TestUnitOfWork();
+
     it("builds an application executor", () => {
         const executor =
-            new DefaultRuntimeBuilder().build();
+            new DefaultRuntimeBuilder(
+                createUnitOfWork,
+            ).build();
 
         expect(executor).toBeDefined();
     });
@@ -27,7 +47,9 @@ describe("DefaultRuntimeBuilder", () => {
         > = async (request) => request.name;
 
         const executor =
-            new DefaultRuntimeBuilder()
+            new DefaultRuntimeBuilder(
+                createUnitOfWork,
+            )
                 .register(
                     CreateUserCommand,
                     handler,
@@ -48,7 +70,9 @@ describe("DefaultRuntimeBuilder", () => {
         let activations = 0;
 
         const executor =
-            new DefaultRuntimeBuilder()
+            new DefaultRuntimeBuilder(
+                createUnitOfWork,
+            )
                 .registerFactory(
                     CreateUserCommand,
                     () => {
@@ -104,7 +128,9 @@ describe("DefaultRuntimeBuilder", () => {
         };
 
         const executor =
-            new DefaultRuntimeBuilder()
+            new DefaultRuntimeBuilder(
+                createUnitOfWork,
+            )
                 .addBehavior(behavior)
                 .register(
                     CreateUserCommand,
@@ -127,8 +153,21 @@ describe("DefaultRuntimeBuilder", () => {
     });
 
     it("creates independent executors", async () => {
+        const unitOfWorks: TestUnitOfWork[] = [];
+
         const builder =
-            new DefaultRuntimeBuilder();
+            new DefaultRuntimeBuilder(
+                () => {
+                    const unitOfWork =
+                        new TestUnitOfWork();
+
+                    unitOfWorks.push(
+                        unitOfWork,
+                    );
+
+                    return unitOfWork;
+                },
+            );
 
         builder.register(
             CreateUserCommand,
@@ -137,6 +176,11 @@ describe("DefaultRuntimeBuilder", () => {
 
         const first = builder.build();
         const second = builder.build();
+
+        expect(unitOfWorks).toHaveLength(2);
+        expect(unitOfWorks[0]).not.toBe(
+            unitOfWorks[1],
+        );
 
         await expect(
             first.execute<
@@ -155,11 +199,19 @@ describe("DefaultRuntimeBuilder", () => {
                 new CreateUserCommand("Two"),
             ),
         ).resolves.toBe("Two");
+
+        expect(unitOfWorks[0]).toBeDefined();
+        expect(unitOfWorks[1]).toBeDefined();
+
+        expect(unitOfWorks[0]!.commits).toBe(1);
+        expect(unitOfWorks[1]!.commits).toBe(1);
     });
 
     it("supports fluent configuration", () => {
         const builder =
-            new DefaultRuntimeBuilder();
+            new DefaultRuntimeBuilder(
+                createUnitOfWork,
+            );
 
         expect(
             builder.register(
