@@ -18,13 +18,14 @@
 
 # Context
 
-The AIDA Application Execution Model defines a common lifecycle for application request execution.
+The AIDA Application Execution Model defines a common boundary for application request execution.
 
-The current Foundation implements explicit request execution through:
+The current Foundation provides:
 
 * handler registration;
 * handler activation;
 * handler resolution;
+* pipeline construction;
 * pipeline execution;
 * application execution entry point.
 
@@ -33,36 +34,32 @@ The current execution path is:
 ```text
 Application Request
         ↓
-Execution Coordinator
+Application Executor
         ↓
-Pipeline
+Pipeline Executor
         ↓
 Handler Resolution
         ↓
 Application Handler
         ↓
-Persistence
-        ↓
-Domain Event Publication
-        ↓
-Execution Complete
+Execution Result
 ```
 
-The existing Application Execution Model defines the Execution Coordinator as the owner of the complete application execution lifecycle.
+The existing Application Execution Model establishes the application execution coordinator as the owner of application execution coordination.
 
-The current Pipeline-based Execution Strategy provides the concrete execution mechanism used by the Execution Coordinator.
+The Pipeline-based Execution Strategy provides the concrete execution mechanism used within that boundary.
 
-The Handler Activation and Handler Registration foundations provide the dependencies required to construct and execute the application handler path.
+The architecture therefore requires explicit lifecycle semantics without introducing a second execution owner or a separate lifecycle framework.
 
-The architecture therefore requires a precise definition of the lifecycle semantics without introducing a second execution owner or a new technical lifecycle framework.
+Persistence and Domain Event Publication are broader application execution responsibilities, but their concrete orchestration is not currently implemented by the Application Executor Foundation and is outside the scope of this decision.
 
-The architectural research documented in AR-0016 evaluated alternative lifecycle models and concluded that the Application Execution Lifecycle should describe the semantic boundary of the existing Execution Coordinator rather than introduce a separate runtime component.
+The architectural research documented in AR-0016 evaluated alternative lifecycle models and concluded that the Application Execution Lifecycle should describe the semantic boundary of the existing Application Executor rather than introduce a separate technical lifecycle component.
 
 ---
 
 # Decision
 
-The AIDA SDK SHALL define the Application Execution Lifecycle as the semantic lifecycle of the existing Execution Coordinator.
+The AIDA SDK SHALL define the Application Execution Lifecycle as the semantic lifecycle of the existing Application Executor.
 
 The Application Execution Lifecycle SHALL NOT introduce a second execution owner.
 
@@ -86,17 +83,17 @@ Execute
 Fail
 ```
 
-The existing Execution Coordinator remains responsible for coordinating the complete application execution lifecycle.
+The existing Application Executor remains responsible for application execution coordination.
 
-The existing Pipeline-based Execution Strategy remains responsible for executing the application request within that lifecycle.
+The existing Pipeline-based Execution Strategy remains responsible for executing the application request within that coordination boundary.
 
-The lifecycle therefore describes the semantic boundaries of existing execution responsibilities rather than introducing a new execution abstraction.
+The lifecycle therefore describes the semantic boundaries of existing execution responsibilities rather than introducing a new technical lifecycle abstraction.
 
 ---
 
 # Architectural Ownership
 
-The existing Execution Coordinator remains the single owner of the complete application execution lifecycle.
+The Application Executor remains the single owner of application execution coordination.
 
 The responsibility model is:
 
@@ -105,35 +102,28 @@ Runtime
   │
   │ composition
   ▼
-Execution Coordinator
+Application Executor
   │
   │ execution strategy
   ▼
-Pipeline
+Pipeline Executor
   │
   ▼
-Handler Resolution
+Handler Resolver
   │
   ▼
 Application Handler
-  │
-  ▼
-Persistence
-  │
-  ▼
-Domain Event Publication
-  │
-  ▼
-Execution Complete
 ```
 
 Runtime remains the Composition Root.
 
-Pipeline remains the execution strategy.
+Pipeline remains the Execution Strategy.
 
 Application handlers remain responsible for application use cases.
 
-Persistence and Domain Event Publication remain lifecycle responsibilities defined by the Application Execution Model.
+Handler Resolution remains an execution dependency.
+
+Persistence and Domain Event Publication remain separate application-level responsibilities and do not become execution owners.
 
 No additional lifecycle owner is introduced.
 
@@ -147,16 +137,16 @@ Every application execution follows the same logical lifecycle.
 
 The Begin stage represents the start of one application execution.
 
-The Execution Coordinator establishes that an application request has entered the execution lifecycle.
+The Application Executor receives an application request and establishes the execution boundary.
 
 Begin does not itself:
 
-* resolve handlers;
-* invoke handlers;
-* perform persistence;
-* publish domain events.
+* implement application business logic;
+* compose Runtime dependencies;
+* become a handler;
+* introduce a lifecycle-specific abstraction.
 
-Begin represents the lifecycle boundary before execution work starts.
+Begin represents the semantic boundary before execution work starts.
 
 ---
 
@@ -166,88 +156,84 @@ The Execute stage represents application request execution.
 
 The existing Execution Strategy remains responsible for executing the request.
 
-The execution path is:
+The current execution path is:
 
 ```text
 Application Request
         ↓
-Execution Coordinator
+Application Executor
+        ↓
+Pipeline Executor
+        ↓
+Handler Resolver
         ↓
 Pipeline
-        ↓
-Handler Resolution
         ↓
 Application Handler
 ```
 
 The existing execution contracts remain unchanged.
 
+The Application Executor delegates concrete execution to the configured Execution Strategy.
+
 ---
 
 ## Complete
 
-The Complete stage represents successful termination of the application execution lifecycle.
+The Complete stage represents successful termination of application execution.
 
-Completion occurs only after the responsibilities defined by the Application Execution Model have successfully completed.
+For the current Foundation, successful completion is represented by successful resolution of the existing execution contract.
 
-Where persistence and domain event publication participate in the execution lifecycle, successful completion occurs after those lifecycle responsibilities have completed successfully.
+No separate completion object or lifecycle interface is introduced.
+
+Future application-level responsibilities may participate in successful completion when their orchestration is explicitly defined by subsequent architectural decisions.
 
 ---
 
 ## Fail
 
-The Fail stage represents unsuccessful termination of the application execution lifecycle.
+The Fail stage represents unsuccessful termination of application execution.
 
-Failure may originate from any lifecycle stage that prevents successful completion.
+Failure may originate from any execution stage that prevents successful completion.
 
-Failure semantics remain governed by the existing error and result model.
+For the current Foundation, failure is represented through the existing Promise-based execution contract.
 
-This ADR does not introduce a new failure representation.
+The Application Executor does not transform failures into a new lifecycle-specific representation.
 
 ---
 
 # Persistence and Domain Events
 
-Persistence and Domain Event Publication remain part of the application execution lifecycle defined by ADR-0011.
+Persistence and Domain Event Publication remain broader responsibilities of the Application Execution architecture.
 
-This ADR does not remove or defer these responsibilities.
+This ADR does not claim that the current Application Executor implements their orchestration.
 
-Instead, it clarifies that they are lifecycle stages coordinated by the existing Execution Coordinator rather than responsibilities of Runtime or Pipeline itself.
+The current Foundation does not introduce a persistence lifecycle coordinator or a domain event lifecycle coordinator.
 
-The lifecycle is therefore conceptually:
-
-```text
-Begin
-  ↓
-Execute Application Request
-  ↓
-Persist Application State
-  ↓
-Publish Domain Events
-  ↓
-Complete
-```
-
-If any required lifecycle responsibility fails:
+The architectural relationship is therefore:
 
 ```text
-Begin
-  ↓
-Execute
-  ↓
-Failure
+Application Execution
+        │
+        ├── execution coordination
+        │
+        ├── persistence responsibility
+        │
+        └── domain event responsibility
 ```
 
-The concrete mechanisms for persistence and Domain Event Publication are not defined by this ADR.
+The Application Executor remains the single owner of application execution coordination.
 
-Dedicated architectural decisions may define:
+Persistence and Domain Event Publication do not become separate lifecycle owners.
+
+Future architectural decisions may define:
 
 * transaction boundaries;
-* Unit of Work coordination;
+* Unit of Work orchestration;
 * persistence orchestration;
 * domain event publication orchestration.
 
-Such decisions SHALL preserve the lifecycle ownership established here.
+Such decisions SHALL preserve the ownership model established by this ADR.
 
 ---
 
@@ -255,7 +241,7 @@ Such decisions SHALL preserve the lifecycle ownership established here.
 
 Runtime remains responsible for composition.
 
-Runtime constructs the execution graph required by the Execution Coordinator.
+Runtime constructs the execution graph required by the Application Executor.
 
 Conceptually:
 
@@ -267,12 +253,12 @@ RuntimeBuilder
         ├── Handler Resolver
         ├── Pipeline Builder
         ├── Pipeline Executor
-        └── Execution Coordinator
+        └── Application Executor
 ```
 
 Runtime SHALL NOT own application execution semantics.
 
-The Execution Coordinator SHALL NOT depend on Runtime-specific composition types.
+The Application Executor SHALL NOT depend on Runtime-specific composition types.
 
 This preserves the existing separation:
 
@@ -281,7 +267,7 @@ Runtime
   │
   │ composition
   ▼
-Execution
+Application Execution
 ```
 
 ---
@@ -290,14 +276,16 @@ Execution
 
 The Pipeline remains an Execution Strategy.
 
-It provides composable execution behavior within the lifecycle owned by the Execution Coordinator.
+It provides composable execution behavior within the lifecycle owned by the Application Executor.
 
 The Pipeline SHALL NOT become the owner of the complete application execution lifecycle.
 
 The relationship remains:
 
 ```text
-Execution Coordinator
+Application Executor
+        ↓
+Pipeline Executor
         ↓
 Pipeline
         ↓
@@ -308,16 +296,18 @@ Application Handler
 
 The Pipeline does not independently coordinate:
 
-* persistence;
-* domain event publication;
-* runtime composition;
-* complete application lifecycle ownership.
+* application lifecycle ownership;
+* Runtime composition;
+* persistence ownership;
+* Domain Event Publication ownership.
+
+This preserves the distinction between execution strategy and lifecycle ownership.
 
 ---
 
 # Pipeline Context
 
-The existing Pipeline Context described by the Execution Strategy remains part of the Pipeline architecture.
+The existing Pipeline Context defined by the Execution Strategy remains part of the Pipeline architecture.
 
 This ADR does not introduce a new lifecycle context.
 
@@ -340,7 +330,7 @@ Handlers SHALL NOT directly own:
 * Runtime composition;
 * Pipeline composition.
 
-The handler remains one stage within the execution lifecycle.
+The handler remains one stage within application execution.
 
 ---
 
@@ -350,13 +340,13 @@ The following invariants SHALL be preserved.
 
 ## Single Lifecycle Owner
 
-The existing Execution Coordinator remains the single owner of the complete application execution lifecycle.
+The Application Executor remains the single owner of application execution coordination.
 
 No second lifecycle owner is introduced.
 
 ## Single Execution Entry
 
-Application requests enter execution through the established Execution Coordinator entry point.
+Application requests enter execution through the established Application Executor entry point.
 
 ## Explicit Lifecycle
 
@@ -376,7 +366,7 @@ Runtime composes execution dependencies but does not define application executio
 
 ## Pipeline Isolation
 
-Pipeline provides execution strategy behavior but does not own the complete lifecycle.
+Pipeline provides execution strategy behavior but does not own the complete application execution lifecycle.
 
 ## Handler Isolation
 
@@ -384,11 +374,15 @@ Application handlers execute application use cases but do not coordinate the lif
 
 ## Persistence Alignment
 
-Persistence remains a lifecycle responsibility as established by ADR-0011.
+Persistence remains a separate application-level responsibility.
+
+Its concrete orchestration must preserve the lifecycle ownership established here.
 
 ## Domain Event Alignment
 
-Domain Event Publication remains a lifecycle responsibility as established by ADR-0011.
+Domain Event Publication remains a separate application-level responsibility.
+
+Its concrete orchestration must preserve the lifecycle ownership established here.
 
 ## Framework Independence
 
@@ -414,9 +408,7 @@ Handler
 Result
 ```
 
-Rejected because this would remove the explicit lifecycle responsibilities already defined by the Application Execution Model.
-
-It would also make persistence and Domain Event Publication difficult to represent consistently.
+Rejected because this would make application execution ownership dependent on individual handlers and would remove the explicit execution coordination boundary.
 
 ---
 
@@ -452,20 +444,20 @@ Making Runtime responsible for execution semantics would couple execution to com
 
 ## New Lifecycle Component
 
-A separate lifecycle component could be introduced around the existing Execution Coordinator.
+A separate lifecycle component could be introduced around the existing Application Executor.
 
-Rejected because it would create a second execution owner and duplicate responsibilities already assigned to the Execution Coordinator.
+Rejected because it would create a second execution owner and duplicate responsibilities already assigned to the Application Executor.
 
 The lifecycle is therefore defined semantically rather than through a new technical component.
 
 ---
 
-## Execution Coordinator Lifecycle
+## Application Executor Lifecycle
 
-The existing Execution Coordinator owns the complete application execution lifecycle, while the Pipeline remains its execution strategy.
+The existing Application Executor owns application execution coordination, while the Pipeline remains its Execution Strategy.
 
 ```text
-Execution Coordinator
+Application Executor
         │
         ├── Begin
         │
@@ -475,31 +467,28 @@ Execution Coordinator
         │      ↓
         │   Handler
         │
-        ├── Persistence
-        │
-        ├── Domain Event Publication
-        │
         └── Complete / Fail
 ```
 
-Selected because this model preserves the existing Application Execution Model and does not introduce a second lifecycle owner.
+Selected because this model preserves the existing Application Execution Model, aligns with the current Foundation implementation, and does not introduce a second lifecycle owner.
 
 ---
 
 # Rationale
 
-The selected model clarifies the semantic lifecycle without changing the ownership model already established by the Application Execution Foundation.
+The selected model clarifies the semantic lifecycle without changing the established ownership model.
 
 It preserves the existing responsibilities:
 
 * Runtime composes;
-* Execution Coordinator owns the application execution lifecycle;
+* Application Executor coordinates application execution;
 * Pipeline provides execution strategy;
 * Handler executes the application use case;
-* Persistence participates in the lifecycle;
-* Domain Event Publication participates in the lifecycle.
+* Handler Resolution resolves the executable handler;
+* Persistence remains a separate application-level responsibility;
+* Domain Event Publication remains a separate application-level responsibility.
 
-The decision therefore strengthens the existing architecture rather than introducing another abstraction layer.
+The decision therefore strengthens the existing architecture without introducing another abstraction layer.
 
 ---
 
@@ -508,21 +497,22 @@ The decision therefore strengthens the existing architecture rather than introdu
 ## Positive
 
 * Application execution has an explicit semantic lifecycle.
-* Existing Execution Coordinator ownership is preserved.
+* Existing Application Executor ownership is preserved.
 * Runtime remains the Composition Root.
 * Pipeline remains an Execution Strategy.
-* Persistence remains aligned with the existing Application Execution Model.
-* Domain Event Publication remains aligned with the existing Application Execution Model.
 * Handler responsibilities remain isolated.
+* Persistence remains separate from execution ownership.
+* Domain Event Publication remains separate from execution ownership.
 * No second lifecycle owner is introduced.
 * No new public lifecycle abstraction is required.
 * Existing public execution contracts remain stable.
 
 ## Negative
 
-* The Execution Coordinator must remain clearly separated from the Pipeline implementation.
+* The Application Executor must remain clearly separated from the Pipeline implementation.
 * Future persistence and Domain Event Publication designs must preserve the lifecycle boundaries established here.
-* Lifecycle semantics must remain synchronized with the Execution Coordinator implementation.
+* Lifecycle semantics must remain synchronized with the Application Executor implementation.
+* Future lifecycle responsibilities require explicit architectural decisions rather than implicit expansion of the Application Executor.
 
 These consequences are intentional.
 
@@ -532,7 +522,7 @@ These consequences are intentional.
 
 This decision does not require a new public lifecycle interface.
 
-The existing Execution Coordinator and execution contracts remain the public architectural boundary.
+The existing Application Executor and execution contracts remain the public architectural boundary.
 
 The decision does not introduce:
 
@@ -554,7 +544,7 @@ Any future public abstraction required by persistence, Domain Event Publication,
 
 No migration is required.
 
-The decision clarifies the semantics of the existing Execution Coordinator.
+The decision clarifies the semantics of the existing Application Executor.
 
 Existing Runtime, Handler Registration, Handler Activation, Handler Resolution, Pipeline, and execution contracts remain valid.
 
@@ -586,12 +576,14 @@ It does not redefine:
 
 The Application Execution Lifecycle Foundation may be frozen when:
 
-* the Execution Coordinator is confirmed as the single lifecycle owner;
+* the Application Executor is confirmed as the single lifecycle owner;
 * Begin, Execute, Complete, and Fail boundaries are stable;
-* persistence remains aligned with the Application Execution Model;
-* Domain Event Publication remains aligned with the Application Execution Model;
 * Runtime remains the Composition Root;
 * Pipeline remains the Execution Strategy;
+* Handler Resolution remains an execution dependency;
+* Application Handlers remain use-case executors;
+* persistence remains outside the current implementation boundary;
+* Domain Event Publication remains outside the current implementation boundary;
 * no second lifecycle owner is introduced;
 * no unnecessary public abstraction is introduced;
 * Detailed Design is reviewed;
@@ -603,14 +595,16 @@ The Application Execution Lifecycle Foundation may be frozen when:
 
 # Implementation Outcome
 
-The Application Execution Lifecycle SHALL be implemented as the lifecycle semantics of the existing Execution Coordinator.
+The Application Execution Lifecycle SHALL be represented by the lifecycle semantics of the existing Application Executor.
 
 The implementation SHALL preserve the following conceptual structure:
 
 ```text
 Application Request
         ↓
-Execution Coordinator
+Application Executor
+        ↓
+Pipeline Executor
         ↓
 Pipeline
         ↓
@@ -618,14 +612,20 @@ Handler Resolution
         ↓
 Application Handler
         ↓
-Persistence
-        ↓
-Domain Event Publication
-        ↓
-Execution Complete
+Execution Result
 ```
 
-Failure may terminate the lifecycle at any stage that prevents successful completion.
+The lifecycle semantics are:
+
+```text
+Begin
+  ↓
+Execute
+  ↓
+Complete / Fail
+```
+
+Persistence and Domain Event Publication remain outside the current implementation boundary.
 
 Implementation SHALL NOT introduce a separate lifecycle owner.
 

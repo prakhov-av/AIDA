@@ -1,19 +1,24 @@
 # DD-0011 - Application Execution Model
 
-- Status: Proposed
-- Date: 2026-08-05
-- Authors: AIDA Team
-- Related:
-  - AR-0011 - Application Execution Model
-  - ADR-0011 - Application Execution Model
+* Status: Proposed
+* Date: 2026-08-05
+* Authors: AIDA Team
+* Related:
+
+  * AR-0011 - Application Execution Model
+  * ADR-0011 - Application Execution Model
+  * ADR-0012 - Execution Strategy
+  * DD-0012 - Execution Strategy
 
 ---
 
 # Purpose
 
-This document defines the architectural design of the Application Execution Model adopted by ADR-0006.
+This document defines the architectural design of the Application Execution Model adopted by ADR-0011.
 
-It specifies the architectural structure, responsibilities, collaboration model, and execution lifecycle required to coordinate application requests.
+It specifies the architectural structure, responsibilities, collaboration model, and execution boundary required to coordinate application requests.
+
+The concrete execution strategy is defined by ADR-0012 - Execution Strategy.
 
 Implementation details remain outside the scope of this document.
 
@@ -27,7 +32,7 @@ These invariants define properties that every implementation must satisfy.
 
 ## Single Entry Point
 
-Every application request enters the execution model through a single entry point.
+Every application request enters the execution model through a single execution entry point.
 
 No request may bypass the execution model.
 
@@ -35,9 +40,9 @@ No request may bypass the execution model.
 
 ## Single Coordinator
 
-Exactly one architectural component owns execution coordination.
+Exactly one architectural component owns application execution coordination.
 
-No other component may coordinate request execution.
+No other component may become a second owner of the complete application execution model.
 
 ---
 
@@ -49,11 +54,13 @@ The execution model must never implement business rules.
 
 ---
 
-## Explicit Lifecycle
+## Explicit Execution Boundary
 
-The execution lifecycle shall be explicit and deterministic.
+Application execution shall have an explicit and deterministic architectural boundary.
 
-Each execution stage has one clearly defined responsibility.
+The execution coordinator owns coordination of the request execution.
+
+The concrete execution strategy performs execution work delegated by the coordinator.
 
 ---
 
@@ -71,36 +78,59 @@ Framework-specific integrations belong outside the SDK.
 
 ---
 
-## Extensibility
+## Composition
 
-Additional execution behavior shall be introduced through composition rather than modification.
+Additional execution behavior shall be introduced through composition rather than modification of the execution coordinator.
 
 ---
 
 # Architectural Overview
 
-The Application Execution Model coordinates application requests by delegating responsibilities to a small set of architectural components.
+The Application Execution Model coordinates application requests through a single Execution Coordinator.
 
-The execution model defines responsibilities rather than implementation types.
+The coordinator delegates concrete request execution to the established Execution Strategy.
 
-Implementation patterns remain outside the scope of this document.
+The current execution architecture is:
+
+```text
+Application Request
+        ↓
+Execution Coordinator
+        ↓
+Execution Strategy
+        ↓
+Handler Resolution
+        ↓
+Application Handler
+        ↓
+Execution Result
+```
+
+The execution model defines responsibilities rather than implementation-specific mechanisms.
+
+The selected Execution Strategy is the Pipeline-based strategy defined by ADR-0012.
+
+The Pipeline remains an execution mechanism and does not become the owner of the complete application execution model.
 
 ---
 
 # Architectural Components
 
-The execution model consists of the following architectural components:
+The execution model consists of the following architectural responsibilities:
 
-- Application Request
-- Execution Coordinator
-- Handler Resolution
-- Application Handler
-- Persistence
-- Domain Event Publication
+* Application Request;
+* Execution Coordinator;
+* Execution Strategy;
+* Handler Resolution;
+* Application Handler.
 
-Each component owns one architectural responsibility.
+Persistence and Domain Event Publication remain application execution responsibilities defined by the broader application architecture.
 
-No responsibility should belong to more than one component.
+Their concrete orchestration mechanisms are outside the scope of this document.
+
+Each architectural responsibility has one owner.
+
+No responsibility should be duplicated across components.
 
 ---
 
@@ -112,86 +142,114 @@ Represents an executable application request.
 
 An application request is either:
 
-- Command
-- Query
+* Command;
+* Query.
 
-Requests are immutable.
+Requests contain request data only.
 
-Requests contain no execution behavior.
+Requests do not coordinate execution.
 
 ---
 
 ## Execution Coordinator
 
-Responsible for coordinating the complete execution lifecycle.
+The Execution Coordinator owns application execution coordination.
 
 Responsibilities include:
 
-- receiving requests;
-- coordinating execution stages;
-- delegating responsibilities;
-- completing execution.
+* receiving application requests;
+* establishing the execution boundary;
+* delegating request execution to the Execution Strategy;
+* determining successful or unsuccessful termination of the coordinated execution.
 
 The coordinator contains no business logic.
+
+The coordinator does not perform handler-specific business operations.
+
+The coordinator does not become part of Runtime composition.
+
+---
+
+## Execution Strategy
+
+The Execution Strategy performs the concrete execution work delegated by the Execution Coordinator.
+
+The selected strategy is the Pipeline-based strategy defined by ADR-0012.
+
+The Execution Strategy is responsible for composing execution behavior.
+
+The Execution Strategy does not own the complete application execution lifecycle.
+
+The Execution Strategy does not become a second execution coordinator.
 
 ---
 
 ## Handler Resolution
 
-Responsible for locating the handler capable of executing the request.
+Handler Resolution locates the handler capable of executing the application request.
 
-The resolution mechanism is intentionally unspecified.
+Handler Resolution remains an execution dependency.
+
+The resolution mechanism is defined by the existing Handler Resolution Foundation.
 
 ---
 
 ## Application Handler
 
-Responsible for executing application use cases.
+The Application Handler executes an application use case.
 
 Handlers may:
 
-- load aggregates;
-- invoke domain behavior;
-- modify application state;
-- return execution results.
+* load aggregates;
+* invoke domain behavior;
+* modify application state;
+* return execution results.
 
-Handlers never coordinate execution.
+Handlers never coordinate the complete application execution lifecycle.
+
+Handlers do not own execution completion or failure semantics.
 
 ---
 
 ## Persistence
 
-Responsible for storing application state.
+Persistence is responsible for application state persistence.
 
-Persistence responsibilities include:
+Persistence responsibilities may include:
 
-- repositories;
-- units of work;
-- transaction boundaries.
+* repositories;
+* units of work;
+* transaction coordination.
 
-Persistence never coordinates execution.
+Persistence does not become the owner of application execution coordination.
+
+The concrete persistence orchestration is outside the scope of this document.
 
 ---
 
 ## Domain Event Publication
 
-Responsible for publishing completed domain events.
+Domain Event Publication is responsible for publishing domain events produced by application execution.
 
-Publication occurs after successful application execution.
+Publication remains separate from execution ownership and transport-specific mechanisms.
 
-Publication remains independent from transport technologies.
+The concrete event publication orchestration is outside the scope of this document.
 
 ---
 
 # Component Collaboration
 
-The architectural collaboration follows the responsibility flow below.
+The current execution collaboration is:
 
 ```text
 Application Request
         │
         ▼
 Execution Coordinator
+        │
+        │ delegates execution
+        ▼
+Execution Strategy
         │
         ▼
 Handler Resolution
@@ -200,42 +258,116 @@ Handler Resolution
 Application Handler
         │
         ▼
-Persistence
-        │
-        ▼
-Domain Event Publication
-        │
-        ▼
-Execution Complete
+Execution Result
 ```
 
-The diagram represents architectural responsibilities rather than implementation classes.
+The diagram represents the application execution boundary.
+
+Persistence and Domain Event Publication may participate in the broader application execution lifecycle, but their concrete orchestration is not defined by this document.
+
+---
+
+# Execution Boundary
+
+The Application Execution Model establishes the following semantic boundary:
+
+```text
+Begin
+  ↓
+Execute
+  ↓
+Complete / Fail
+```
+
+`Begin` represents the entry of an application request into coordinated execution.
+
+`Execute` represents execution of the request through the selected Execution Strategy and Application Handler.
+
+`Complete` represents successful termination of the coordinated execution.
+
+`Fail` represents unsuccessful termination when execution cannot complete successfully.
+
+No separate technical lifecycle component is required to represent these semantics.
 
 ---
 
 # Execution Lifecycle
 
-Every application request follows the same logical lifecycle.
+Every application execution follows the same logical lifecycle:
 
-1. Receive request.
-2. Coordinate execution.
-3. Resolve handler.
-4. Execute handler.
-5. Persist state.
-6. Publish domain events.
-7. Complete execution.
+1. Receive the application request.
+2. Begin coordinated execution.
+3. Delegate execution to the Execution Strategy.
+4. Resolve and execute the application handler.
+5. Complete successfully or fail.
 
-The lifecycle describes architectural ordering only.
+Persistence and Domain Event Publication remain part of the broader Application Execution architecture where required by the application model.
 
-Concrete implementation strategies remain outside the scope of this document.
+Their concrete ordering and orchestration require dedicated architectural decisions when implementation is introduced.
+
+This document therefore does not claim that persistence or domain event publication are implemented by the current execution coordinator.
+
+---
+
+# Runtime Boundary
+
+Runtime is the Composition Root.
+
+Runtime composes the dependencies required by the Execution Coordinator but does not own application execution semantics.
+
+The architectural relationship is:
+
+```text
+Runtime
+    │
+    │ composition
+    ▼
+Execution Coordinator
+    │
+    │ execution
+    ▼
+Execution Strategy
+```
+
+The Execution Coordinator must not depend on Runtime-specific composition types.
+
+---
+
+# Pipeline Boundary
+
+The Pipeline is the selected Execution Strategy.
+
+Its responsibility is to provide composable execution behavior within the execution boundary owned by the Execution Coordinator.
+
+The Pipeline does not independently coordinate:
+
+* complete application execution;
+* Runtime composition;
+* application lifecycle ownership.
+
+The relationship remains:
+
+```text
+Execution Coordinator
+        ↓
+Pipeline
+        ↓
+Handler Resolution
+        ↓
+Application Handler
+```
 
 ---
 
 # Public API
 
-This document introduces no public API.
+This document introduces no new public API.
 
-Future public abstractions shall be defined separately after the execution strategy has been selected.
+The Application Execution Model does not require a dedicated lifecycle interface.
+
+The existing execution contracts remain the architectural boundary.
+
+Future public abstractions required for persistence, domain event publication, or additional lifecycle concerns shall be introduced through separate architectural decisions.
 
 ---
 
@@ -245,19 +377,27 @@ Any implementation shall preserve the architectural invariants defined by this d
 
 Implementation-specific optimizations must not change the architectural responsibilities.
 
-Execution strategies remain implementation details.
+In particular:
+
+* Runtime must remain the Composition Root;
+* Execution Coordinator must remain the single execution owner;
+* Pipeline must remain an Execution Strategy;
+* handlers must remain application use-case executors;
+* persistence must remain separate from execution ownership;
+* domain event publication must remain separate from execution ownership;
+* no second lifecycle owner may be introduced;
+* no unnecessary lifecycle abstraction may be introduced.
 
 ---
 
 # Implementation Notes
 
-This document intentionally avoids selecting a concrete execution strategy.
+The concrete execution strategy has already been selected by ADR-0012.
 
-Possible implementation strategies include:
+The current Foundation uses the Pipeline-based Execution Strategy.
 
-- Pipeline
-- Bus
-- Mediator
-- Dispatcher
+This document does not introduce a new execution mechanism.
 
-These alternatives will be evaluated separately as part of the Execution Strategy research.
+The Application Execution Lifecycle is defined semantically by the existing Execution Coordinator rather than by introducing a separate lifecycle component.
+
+Detailed implementation behavior is defined by the relevant execution design documents and existing Foundation modules.

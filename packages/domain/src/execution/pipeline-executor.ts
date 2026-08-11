@@ -1,8 +1,8 @@
 /**
- * Defines execution coordination for pipeline-based processing.
+ * Defines execution strategy coordination for pipeline-based processing.
  *
- * The executor owns execution lifecycle and coordinates
- * handler resolution and pipeline execution.
+ * The executor coordinates handler resolution and pipeline execution
+ * within the application execution lifecycle owned by the application executor.
  */
 export interface PipelineExecutor {
     /**

@@ -1,286 +1,190 @@
-# AR-0006 - Application Execution Model
+# AR-0011 - Application Execution Model
 
-- Status: Proposed
-- Date: 2026-08-05
-- Authors: AIDA Team
-- Related:
-  - ADR-0006 - Application Execution Model
-  - DD-0006 - Application Execution Model
+* Status: Proposed
+* Date: 2026-08-05
+* Authors: AIDA Team
+* Related:
+
+  * ADR-0011 - Application Execution Model
+  * DD-0011 - Application Execution Model
+  * ADR-0012 - Execution Strategy
+  * DD-0012 - Execution Strategy
 
 ---
 
 # Problem
 
-The current Application SDK provides a set of independent contracts for coordinating application logic.
+The AIDA Application SDK provides independent contracts for coordinating application logic.
 
 These contracts include:
 
-- Command
-- CommandHandler
-- Query
-- QueryHandler
-- Repository
-- UnitOfWork
+* Command
+* CommandHandler
+* Query
+* QueryHandler
+* Repository
+* UnitOfWork
 
-Each contract has a single responsibility and intentionally avoids assumptions about execution, infrastructure, or framework integration.
+Each contract has a focused responsibility and intentionally avoids assumptions about application frameworks, infrastructure, transport, or execution mechanisms.
 
-This design successfully separates concerns and keeps the public SDK small. However, it leaves one architectural question intentionally unanswered:
+This separation keeps the public SDK small and preserves Domain independence.
 
-> How should an application coordinate the execution of these contracts?
+However, the SDK also requires an architectural model defining how application requests are coordinated.
 
-At present, every application built on top of the SDK must define its own execution model.
+Without a common execution model:
 
-As a consequence:
+* command execution becomes application-specific;
+* query execution becomes application-specific;
+* handler coordination becomes application-specific;
+* execution boundaries become inconsistent;
+* transaction coordination remains undefined at the application architecture level;
+* domain event publication lacks a common lifecycle boundary;
+* cross-cutting execution behavior has no consistent architectural location.
 
-- command execution is application-specific;
-- query execution is application-specific;
-- transaction boundaries are undefined;
-- handler resolution is undefined;
-- domain event publication has no defined lifecycle;
-- cross-cutting concerns have no architectural location.
-
-The SDK defines *what* the building blocks are, but not *how* they collaborate during request execution.
-
-While this provides maximum flexibility, it also increases the likelihood of inconsistent application architectures and duplicated execution infrastructure across projects.
-
-The platform therefore requires a common architectural model capable of coordinating application requests while preserving the existing design principles of AIDA.
+The SDK therefore requires an explicit Application Execution Model that defines ownership and boundaries without introducing unnecessary technical abstractions.
 
 ---
 
 # Goals
 
-The objective of this research is to identify an architectural execution model suitable for coordinating application requests.
+The research evaluates an architectural model that should:
 
-The resulting architecture should:
+* define a consistent application execution boundary;
+* establish clear ownership of application request coordination;
+* preserve Domain independence;
+* remain framework-independent;
+* support composable execution strategies;
+* preserve a minimal public API;
+* avoid unnecessary architectural complexity;
+* provide a stable foundation for future execution capabilities.
 
-- define a consistent lifecycle for command execution;
-- define a consistent lifecycle for query execution;
-- preserve the independence of the Domain layer;
-- maintain explicit architectural boundaries;
-- remain framework-independent;
-- support future extensibility;
-- preserve a minimal public API;
-- avoid unnecessary architectural complexity.
-
-The selected approach should remain suitable for long-term evolution without introducing breaking changes to the existing SDK.
+The selected model should remain compatible with the existing SDK contracts and should not require replacing previously established Foundation components.
 
 ---
 
 # Non-Goals
 
-This research intentionally does **not** define:
+This research does not define:
 
-- concrete implementations;
-- dependency injection mechanisms;
-- framework integrations;
-- transport protocols;
-- persistence technologies;
-- event brokers;
-- middleware implementations;
-- logging frameworks;
-- validation libraries;
-- caching implementations.
+* concrete framework integrations;
+* dependency injection mechanisms;
+* transport protocols;
+* persistence technologies;
+* event brokers;
+* middleware implementations;
+* logging frameworks;
+* validation libraries;
+* caching implementations;
+* concrete lifecycle infrastructure.
 
-This document also does not introduce new public APIs.
+This research also does not define the concrete execution strategy implementation.
 
-No architectural decisions are made in this document.
-
-Its purpose is to understand the design space before selecting an architectural solution.
+The execution strategy is defined separately by ADR-0012 - Execution Strategy.
 
 ---
 
 # Current State
 
-The current SDK already provides the fundamental application contracts required to implement business use cases.
+The SDK already provides the fundamental contracts required to implement application use cases.
 
-The Application layer currently defines:
+The Application layer defines:
 
-- Command
-- CommandHandler
-- Query
-- QueryHandler
-- Repository
-- UnitOfWork
+* Command;
+* CommandHandler;
+* Query;
+* QueryHandler;
+* Repository;
+* UnitOfWork.
 
 The Domain layer defines:
 
-- AggregateRoot
-- DomainEvent
-- DomainEvents
+* AggregateRoot;
+* DomainEvent;
+* DomainEvents.
 
-All public APIs have been reviewed, documented, and frozen as part of the v0.1.0 release.
+These contracts establish the building blocks required for application execution but do not define how requests are coordinated.
 
-Each abstraction has a clearly defined responsibility.
+The execution architecture therefore requires a separate coordination boundary.
 
-However, no component currently defines:
+The current Foundation has subsequently established:
 
-- how execution begins;
-- how handlers are discovered;
-- how requests are coordinated;
-- where transactions begin;
-- where transactions complete;
-- when domain events are published;
-- where cross-cutting concerns execute;
-- how the complete application request lifecycle is managed.
+* Handler Resolution;
+* Pipeline-based Execution Strategy;
+* Runtime Composition;
+* Handler Registration;
+* Handler Activation;
+* Application Execution entry point.
 
-The execution model is therefore intentionally undefined.
-
-This architectural gap gives every application complete freedom to define its own coordination strategy.
-
-Although flexible, this approach makes it difficult to establish a consistent Application architecture across projects built on top of the SDK.
-
-The purpose of this research is to determine whether the platform should define a common execution model and, if so, what architectural characteristics such a model should possess.
+The architectural model must therefore preserve these existing responsibilities rather than introduce a competing execution owner.
 
 ---
 
 # Research Questions
 
-The following questions define the scope of this research.
+The research was organized around the following architectural questions.
 
-They intentionally avoid proposing implementation details or architectural decisions.
+## 1. What should own application execution?
 
-Their purpose is to identify the questions that the future architecture must answer.
-
----
-
-## 1. What is an Application Execution Model?
-
-Should the platform define a common execution model for application requests?
-
-If so:
-
-what responsibilities belong to the execution model;
-what responsibilities belong outside the execution model;
-what defines the boundaries of the execution model?
+The primary question is whether application execution should remain application-specific or whether the SDK should define a common coordination boundary.
 
 ---
 
-## 2. How should commands be executed?
+## 2. How should commands and queries enter execution?
 
-Should command execution follow a predefined lifecycle?
-
-Questions include:
-
-- where execution begins;
-- how handlers are invoked;
-- where transactions start;
-- where transactions complete;
-- when domain events are published.
+The architecture must provide a consistent entry boundary for application requests without coupling execution to transport or framework mechanisms.
 
 ---
 
-## 3. How should queries be executed?
+## 3. Where should concrete execution behavior belong?
 
-Should queries follow the same execution lifecycle as commands?
+The architecture must distinguish execution ownership from the mechanism used to perform execution.
 
-Questions include:
-
-- which execution stages are shared;
-- which stages differ;
-- whether queries require transactions;
-- whether queries should support caching.
+This distinction allows an execution strategy to evolve without transferring ownership of the complete application execution model.
 
 ---
 
-## 4. Where should transaction boundaries exist?
+## 4. Where should handler resolution belong?
 
-State-changing operations frequently require transactional consistency.
-
-This research should determine:
-
-- who creates the transaction;
-- who commits the transaction;
-- who performs rollback;
-- whether transaction management belongs inside the execution model or outside of it.
+Handler Resolution must remain an execution dependency while preserving a clear separation between request coordination and handler implementation.
 
 ---
 
-## 5. How should handlers be resolved?
+## 5. Where should persistence and domain event publication belong?
 
-The SDK defines handlers but intentionally leaves handler discovery undefined.
+Persistence and Domain Event Publication participate in the broader application execution architecture.
 
-Questions include:
+However, their concrete orchestration mechanisms should not be invented as part of the basic Application Execution Model.
 
-- who resolves handlers;
-- whether resolution should be static or dynamic;
-- whether handler resolution belongs to the execution model.
+Dedicated architectural decisions may define those mechanisms when required.
 
 ---
 
-## 6. When should domain events be published?
+## 6. Where should cross-cutting concerns belong?
 
-Domain events represent completed business facts.
-
-Questions include:
-
-- when publication should occur;
-- whether publication occurs before or after persistence;
-- whether failed transactions publish events;
-- which architectural component owns publication.
+Cross-cutting execution behavior should be introduced through composable execution mechanisms rather than by embedding unrelated responsibilities into the Execution Coordinator.
 
 ---
 
-## 7. Where should cross-cutting concerns be applied?
+## 7. What should the public API contain?
 
-Applications commonly require additional execution behaviors such as:
-
-- validation;
-- logging;
-- authorization;
-- metrics;
-- tracing;
-- retry policies.
-
-This research should determine:
-
-- which concerns belong to the Application layer;
-- which belong to Infrastructure;
-- whether the execution model should define extension points.
-
----
-
-## 8. What should the public API look like?
-
-The current SDK exposes only application contracts.
-
-This research should determine:
-
-- whether additional public abstractions are required;
-- how small the public API can remain;
-- which abstractions should remain internal.
-
----
-
-## 9. How should the execution model evolve?
-
-The execution model should support future capabilities without redesign.
-
-Questions include:
-
-- how future behaviors are introduced;
-- how extensibility is achieved;
-- how long-term architectural stability is preserved.
+The architecture should avoid introducing lifecycle-specific public abstractions unless they provide clear architectural value.
 
 ---
 
 # Architectural Constraints
 
-Any future solution must comply with the architectural principles already established by AIDA.
-
-These constraints are considered mandatory.
-
----
+Any selected solution must comply with the established AIDA architectural principles.
 
 ## Domain Independence
 
-The Domain layer must remain independent of:
+The Domain layer must remain independent from:
 
-- Application;
-- Infrastructure;
-- frameworks;
-- transport protocols;
-- persistence technologies;
-- dependency injection.
+* Application;
+* Infrastructure;
+* frameworks;
+* transport protocols;
+* persistence technologies;
+* dependency injection mechanisms.
 
 ---
 
@@ -294,31 +198,29 @@ New public abstractions should only be introduced when they provide clear archit
 
 ## Explicit Architecture
 
-Application execution should remain explicit and understandable.
+Application execution must remain explicit and understandable.
 
-Hidden execution paths, runtime magic, and implicit framework conventions should be avoided.
+Hidden execution paths and implicit framework behavior should be avoided.
 
 ---
 
 ## Framework Independence
 
-The execution model must remain independent of application frameworks.
+The execution model must remain independent from application frameworks.
 
-Framework integrations should exist outside the SDK.
+Framework integrations belong outside the SDK.
 
 ---
 
-## Extensibility
+## Composition
 
-The architecture should support future execution behaviors without redesigning the execution model.
-
-Extension should be achieved through composition rather than modification.
+Execution behavior should be extended through composition rather than by transferring responsibilities between architectural owners.
 
 ---
 
 ## Single Responsibility
 
-Execution coordination should never become responsible for business logic.
+Execution coordination must not contain business logic.
 
 Business behavior belongs to application handlers and the Domain model.
 
@@ -326,206 +228,442 @@ Business behavior belongs to application handlers and the Domain model.
 
 ## Predictable Execution
 
-The complete request lifecycle should remain deterministic and understandable.
+The application request lifecycle must have clearly defined architectural boundaries.
 
-Every execution stage should have one clearly defined responsibility.
+Each responsibility should have one owner.
 
 ---
 
 ## Backward Compatibility
 
-The introduction of an execution model should preserve compatibility with the existing SDK whenever reasonably possible.
+Previously established public contracts should remain valid.
 
-Previously frozen public contracts should remain valid.
+The execution model must not require unnecessary replacement of existing Foundation components.
 
 ---
 
 # Architectural Alternatives
 
-This section evaluates different architectural ownership models.
+The alternatives evaluated below concern **ownership of application execution coordination**.
 
-It intentionally evaluates **coordination ownership**, not concrete execution mechanisms.
-
-Execution mechanisms may be researched separately if required.
+They do not define concrete execution mechanisms.
 
 ---
 
-## Alternative A — Independent Execution
+## Alternative A — Independent Application Execution
 
-Applications coordinate execution independently.
+Each application coordinates its own requests.
 
 ### Advantages
 
-- maximum flexibility;
-- minimal SDK;
-- no additional abstractions.
+* maximum application-level flexibility;
+* minimal SDK responsibility;
+* no common coordination abstraction.
 
 ### Disadvantages
 
-- duplicated infrastructure;
-- inconsistent execution models;
-- difficult knowledge sharing.
+* duplicated execution infrastructure;
+* inconsistent application architecture;
+* different lifecycle semantics across applications;
+* repeated architectural decisions.
+
+### Evaluation
+
+Rejected because the SDK would provide execution building blocks without providing a consistent Application execution boundary.
 
 ---
 
-## Alternative B — Centralized Execution Model
+## Alternative B — Centralized Execution Coordinator
 
-The SDK owns request coordination.
+The SDK defines a common Execution Coordinator responsible for application request coordination.
 
-Applications interact with a common execution model.
+Concrete execution behavior is delegated to an Execution Strategy.
 
 ### Advantages
 
-- consistent architecture;
-- reusable execution lifecycle;
-- shared behaviors.
+* explicit execution ownership;
+* consistent application execution boundary;
+* reusable architecture;
+* clear separation between coordination and execution strategy;
+* framework independence;
+* compatibility with composable execution behavior.
 
 ### Disadvantages
 
-- additional abstractions;
-- increased SDK responsibility.
+* increases the architectural responsibility of the Application layer;
+* requires explicit separation between coordinator and execution strategy.
+
+### Evaluation
+
+Selected.
+
+The Execution Coordinator provides the stable architectural ownership boundary while the concrete execution mechanism remains independently composable.
 
 ---
 
 ## Alternative C — Infrastructure-Driven Coordination
 
-Execution coordination belongs entirely to external frameworks.
+Execution coordination belongs entirely to external frameworks or infrastructure.
 
 ### Advantages
 
-- smallest SDK;
-- maximum framework flexibility.
+* smaller SDK responsibility;
+* maximum framework-level flexibility.
 
 ### Disadvantages
 
-- framework-dependent architecture;
-- inconsistent execution lifecycle;
-- difficult portability.
+* framework-dependent execution architecture;
+* inconsistent lifecycle semantics;
+* reduced portability;
+* weaker Application layer ownership.
+
+### Evaluation
+
+Rejected because execution ownership should remain explicit and framework-independent.
 
 ---
 
-## Alternative D — Hybrid Coordination
+## Alternative D — Separate Lifecycle Component
 
-The SDK defines the execution model.
-
-Infrastructure extends its behavior.
+A dedicated lifecycle component owns application execution around the existing execution components.
 
 ### Advantages
 
-- consistent architecture;
-- framework independence;
-- controlled extensibility.
+* explicit lifecycle abstraction;
+* potentially centralized lifecycle hooks.
 
 ### Disadvantages
 
-- requires well-defined extension points;
-- higher architectural complexity.
+* introduces another execution owner;
+* duplicates coordination responsibilities;
+* increases public and internal abstraction surface;
+* risks coupling lifecycle semantics to a technical component.
+
+### Evaluation
+
+Rejected.
+
+Lifecycle semantics should remain part of the existing Execution Coordinator rather than introducing a second lifecycle owner.
 
 ---
 
-# Evaluation Criteria
+# Evaluation
 
-Each architectural alternative should be evaluated using the same criteria.
+The selected centralized execution model satisfies the primary architectural requirements.
 
----
+| Criterion                      | Independent | Centralized Coordinator | Infrastructure-Driven | Separate Lifecycle Component |
+| ------------------------------ | ----------- | ----------------------- | --------------------- | ---------------------------- |
+| Domain Independence            | Yes         | Yes                     | Partial               | Yes                          |
+| Explicitness                   | Partial     | Yes                     | Partial               | Yes                          |
+| Simplicity                     | Yes         | Yes                     | Yes                   | No                           |
+| Extensibility                  | Partial     | Yes                     | Partial               | Yes                          |
+| Testability                    | Partial     | Yes                     | Partial               | Yes                          |
+| Framework Independence         | Yes         | Yes                     | No                    | Yes                          |
+| Stable Public API              | Yes         | Yes                     | Yes                   | Partial                      |
+| Separation of Responsibilities | Partial     | Yes                     | Partial               | No                           |
+| Long-Term Maintainability      | Partial     | Yes                     | Partial               | Partial                      |
+| Consistency                    | No          | Yes                     | Partial               | Yes                          |
 
-## Domain Independence
-
-Preserves Domain isolation.
-
----
-
-## Explicitness
-
-Execution remains understandable.
-
----
-
-## Simplicity
-
-Introduces the smallest useful architectural surface.
+The Centralized Execution Coordinator provides the strongest balance between explicit ownership, composability, framework independence, and architectural simplicity.
 
 ---
 
-## Extensibility
+# Selected Architectural Model
 
-Supports future evolution without redesign.
+The selected architecture is:
+
+```text
+Application Request
+        ↓
+Execution Coordinator
+        ↓
+Execution Strategy
+        ↓
+Handler Resolution
+        ↓
+Application Handler
+        ↓
+Execution Result
+```
+
+The responsibilities are separated as follows:
+
+```text
+Runtime
+  │
+  │ composition
+  ▼
+Execution Coordinator
+  │
+  │ execution strategy
+  ▼
+Pipeline
+  │
+  ▼
+Handler Resolution
+  │
+  ▼
+Application Handler
+```
+
+Runtime remains the Composition Root.
+
+The Execution Coordinator remains the single owner of application execution coordination.
+
+The Pipeline remains an Execution Strategy.
+
+The Application Handler remains responsible for executing the application use case.
 
 ---
 
-## Testability
+# Execution Lifecycle Semantics
 
-Supports isolated testing of execution stages.
+The selected architecture establishes the following semantic lifecycle:
 
----
+```text
+Begin
+  ↓
+Execute
+  ↓
+Complete / Fail
+```
 
-## Framework Independence
+`Begin` represents entry into coordinated application execution.
 
-Remains portable across application environments.
+`Execute` represents execution through the selected Execution Strategy and Application Handler.
 
----
+`Complete` represents successful termination.
 
-## Stable Public API
+`Fail` represents unsuccessful termination.
 
-Avoids unnecessary public abstractions.
+These lifecycle semantics belong to the Execution Coordinator.
 
----
-
-## Separation of Responsibilities
-
-Keeps business logic separate from execution coordination.
-
----
-
-## Long-Term Maintainability
-
-Supports long-term platform evolution.
+They do not require a separate lifecycle component.
 
 ---
 
-## Consistency
+# Persistence and Domain Events
 
-Provides a consistent execution model for application requests.
+Persistence and Domain Event Publication remain part of the broader Application Execution architecture.
+
+The selected model does not assign lifecycle ownership to:
+
+* Repository;
+* UnitOfWork;
+* DomainEvents;
+* event transport;
+* persistence infrastructure.
+
+Their concrete orchestration remains a separate architectural concern.
+
+This separation prevents the basic execution model from prematurely introducing:
+
+* transaction managers;
+* event buses;
+* event dispatchers;
+* lifecycle-specific contexts;
+* infrastructure-specific coordination components.
+
+Future architecture decisions may define concrete persistence or domain event orchestration while preserving the Execution Coordinator as the application execution owner.
+
+---
+
+# Runtime Boundary
+
+Runtime is responsible for composition.
+
+Runtime constructs the execution graph but does not own application execution semantics.
+
+The architectural boundary is:
+
+```text
+Runtime
+    │
+    │ composition
+    ▼
+Execution Coordinator
+```
+
+The Execution Coordinator must remain independent from Runtime-specific composition types.
+
+---
+
+# Execution Strategy Boundary
+
+The concrete execution strategy is defined separately by ADR-0012.
+
+The selected Foundation strategy is Pipeline-based execution.
+
+The Pipeline provides composable execution behavior.
+
+It does not become the owner of the complete application execution model.
+
+The relationship is:
+
+```text
+Execution Coordinator
+        ↓
+Pipeline
+        ↓
+Handler Resolution
+        ↓
+Application Handler
+```
+
+This separation prevents execution strategy implementation from becoming application lifecycle ownership.
+
+---
+
+# Handler Boundary
+
+Application handlers execute application use cases.
+
+Handlers do not own:
+
+* application execution coordination;
+* lifecycle completion;
+* lifecycle failure;
+* Runtime composition;
+* Pipeline composition.
+
+This preserves the separation between use-case behavior and execution coordination.
+
+---
+
+# Public API Implications
+
+The selected architecture does not require a dedicated lifecycle interface.
+
+The following abstractions are intentionally not introduced by this decision:
+
+* `ExecutionLifecycle`;
+* `ExecutionContext`;
+* `TransactionManager`;
+* `EventDispatcher`;
+* `EventBus`;
+* `ServiceProvider`;
+* lifecycle-specific middleware contracts.
+
+The public API should remain limited to the existing execution boundaries.
+
+Any future public abstraction must be justified by a separate architectural decision.
 
 ---
 
 # Risks
 
-If no common execution model is introduced, applications built on top of the SDK may gradually diverge.
+The selected architecture introduces several risks that must remain controlled.
 
-Potential risks include:
+## Coordinator Responsibility Growth
 
-- duplicated execution infrastructure;
-- inconsistent application architecture;
-- incompatible extensions;
-- higher maintenance costs;
-- difficult onboarding of new contributors;
-- reduced architectural consistency across projects.
+The Execution Coordinator could gradually accumulate unrelated responsibilities.
+
+This must be prevented through explicit architectural boundaries.
+
+---
+
+## Strategy Ownership Leakage
+
+The Pipeline or another Execution Strategy could become a de facto lifecycle owner.
+
+This must be prevented by preserving the Coordinator as the single execution owner.
+
+---
+
+## Persistence Coupling
+
+Persistence infrastructure could become coupled directly to the execution coordinator.
+
+Persistence orchestration must remain a separate architectural concern unless explicitly introduced through a dedicated decision.
+
+---
+
+## Domain Event Coupling
+
+Domain event publication could become coupled to transport-specific mechanisms.
+
+Domain event publication must remain independent from transport infrastructure.
+
+---
+
+## Public API Expansion
+
+Future execution features could introduce unnecessary lifecycle abstractions.
+
+New public abstractions require separate architectural justification.
+
+---
+
+# Architectural Outcome
+
+The research establishes the following architectural direction:
+
+1. AIDA should define a common Application Execution Model.
+2. Application execution should have one explicit execution owner.
+3. The Execution Coordinator should own application execution coordination.
+4. Concrete execution behavior should be delegated to an Execution Strategy.
+5. Pipeline is the selected Execution Strategy defined by ADR-0012.
+6. Runtime remains the Composition Root.
+7. Application handlers remain use-case executors.
+8. Persistence and Domain Event Publication remain separate architectural responsibilities.
+9. No second lifecycle owner should be introduced.
+10. No dedicated public lifecycle abstraction is required by this model.
 
 ---
 
 # Conclusion
 
-This research intentionally makes no architectural decisions.
+The research supports a centralized Application Execution Model based on a single Execution Coordinator.
 
-Its purpose is to establish the architectural context required for evaluating possible execution models.
+The selected model provides:
 
-The alternatives presented in this document should be evaluated using the defined architectural constraints and evaluation criteria.
+* explicit ownership;
+* predictable execution boundaries;
+* framework independence;
+* composable execution strategies;
+* stable public APIs;
+* separation of application execution from business logic;
+* compatibility with the existing Runtime, Handler, and Pipeline Foundations.
 
-The selected architecture, if any, will be documented in **ADR-0006 - Application Execution Model**.
+The resulting architecture is:
+
+```text
+Application Request
+        ↓
+Execution Coordinator
+        ↓
+Execution Strategy
+        ↓
+Handler Resolution
+        ↓
+Application Handler
+        ↓
+Execution Result
+```
+
+The Execution Coordinator remains the single owner of application execution coordination.
+
+The Pipeline remains an Execution Strategy.
+
+No separate lifecycle component is required.
+
+Persistence and Domain Event Publication remain broader application execution responsibilities whose concrete orchestration requires dedicated architectural decisions.
 
 ---
 
 # Research Status
 
-Current status:
+Research outcome:
 
-- Problem defined
-- Goals established
-- Constraints identified
-- Alternatives evaluated
-- Evaluation criteria established
+* Problem defined
+* Goals established
+* Constraints identified
+* Alternatives evaluated
+* Evaluation criteria applied
+* Centralized Execution Coordinator selected
+* Execution Strategy separated from execution ownership
+* Pipeline selected separately by ADR-0012
+* Separate lifecycle component rejected
+* Public lifecycle abstraction rejected
 
-The research is ready for Architecture Decision.
-
-No architectural decision has been made.
+The research is complete and supports ADR-0011 - Application Execution Model.
