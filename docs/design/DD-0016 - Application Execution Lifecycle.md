@@ -1,6 +1,6 @@
 # DD-0016 - Application Execution Lifecycle
 
-* Status: Proposed
+* Status: Accepted
 * Date: 2026-08-10
 * Authors: AIDA Team
 * Related:
