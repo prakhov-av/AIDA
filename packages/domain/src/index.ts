@@ -1,4 +1,5 @@
 export * from "./aggregate-root";
+export * from "./application";
 export * from "./commands";
 export * from "./domain-error";
 export * from "./entity";
