@@ -13,8 +13,7 @@ AIDA currently contains two Foundation packages:
 packages/
 ├── domain/
 └── persistence/
-
-
+```
 
 The Domain package owns the runtime composition Foundation.
 
