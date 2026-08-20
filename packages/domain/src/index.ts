@@ -9,3 +9,4 @@ export * from "./foundation";
 export * from "./repository";
 export * from "./runtime";
 export * from "./unit-of-work";
+export * from "./task";
